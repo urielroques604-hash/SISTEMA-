@@ -1,0 +1,6 @@
+{
+  "name": "VARIEDADES CS - De Todo Un Poco",
+  "description": "Sistema Oficial de Punto de Venta e Inventario para VARIEDADES CS: Perfumería, cremas, bolsos, toallas húmedas, calzado, ropa, carteras y de todo un poco con tickets térmicos POS, comprobantes digitales y control de ventas.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
