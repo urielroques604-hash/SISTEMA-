@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import { Producto, Cliente, Proveedor, VentaRegistro, Credito, Abono, MovimientoCaja, CompraRegistro } from '../types';
+import { obtenerTasaCambio } from './currency';
 
 export interface DetalleHojaProcesada {
   nombre: string;
@@ -262,8 +263,12 @@ export function mapearFilasAProductos(
     let existencia = 0;
     let precioCompra = 0;
     let precioVenta = 0;
+    let precioCompraCordobas: number | undefined = undefined;
+    let precioVentaCordobas: number | undefined = undefined;
     let talla = '';
     let color = '';
+
+    const tcGlobal = obtenerTasaCambio();
 
     for (const [colName, val] of Object.entries(fila)) {
       const norm = normalizarEncabezado(colName);
@@ -277,6 +282,10 @@ export function mapearFilasAProductos(
         categoria = strVal || catDefault;
       } else if (norm.includes('existencia') || norm.includes('stock') || norm.includes('cantidad') || norm.includes('cant') || norm.includes('unidades')) {
         existencia = Math.max(0, Math.round(aNumero(val, 0)));
+      } else if (norm.includes('preciocompracordoba') || norm.includes('costocordoba') || norm.includes('compracordoba') || norm.includes('compranio')) {
+        precioCompraCordobas = aNumero(val, 0);
+      } else if (norm.includes('precioventacordoba') || norm.includes('ventacordoba') || norm.includes('ventanio') || norm.includes('preciocordoba')) {
+        precioVentaCordobas = aNumero(val, 0);
       } else if (norm.includes('preciocompra') || norm.includes('costo') || norm.includes('inversion') || norm === 'compra' || norm === 'cost') {
         precioCompra = aNumero(val, 0);
       } else if (norm.includes('precioventa') || norm.includes('precio') || norm.includes('pvp') || norm === 'venta' || norm === 'price') {
@@ -286,6 +295,14 @@ export function mapearFilasAProductos(
       } else if (norm.includes('color')) {
         color = strVal;
       }
+    }
+
+    // Si solo venían precios en córdobas, convertirlos a dólares
+    if (precioVenta <= 0 && precioVentaCordobas && precioVentaCordobas > 0 && tcGlobal > 0) {
+      precioVenta = Number((precioVentaCordobas / tcGlobal).toFixed(2));
+    }
+    if (precioCompra <= 0 && precioCompraCordobas && precioCompraCordobas > 0 && tcGlobal > 0) {
+      precioCompra = Number((precioCompraCordobas / tcGlobal).toFixed(2));
     }
 
     // Si no se detectó nombre ni código, omitir fila vacía
@@ -316,13 +333,23 @@ export function mapearFilasAProductos(
       precioCompra = Number((precioVenta * 0.7).toFixed(2));
     }
 
+    // Asegurar equivalentes en Córdobas
+    if (!precioCompraCordobas && precioCompra > 0) {
+      precioCompraCordobas = Number((precioCompra * tcGlobal).toFixed(2));
+    }
+    if (!precioVentaCordobas && precioVenta > 0) {
+      precioVentaCordobas = Number((precioVenta * tcGlobal).toFixed(2));
+    }
+
     lista.push({
       codigo,
       producto: nombreFinal,
       categoria: categoria || 'General',
       existencia: existencia,
       precioCompra: Number(precioCompra.toFixed(2)),
-      precioVenta: Number(precioVenta.toFixed(2))
+      precioCompraCordobas: precioCompraCordobas ? Number(precioCompraCordobas.toFixed(2)) : undefined,
+      precioVenta: Number(precioVenta.toFixed(2)),
+      precioVentaCordobas: precioVentaCordobas ? Number(precioVentaCordobas.toFixed(2)) : undefined
     });
   });
 

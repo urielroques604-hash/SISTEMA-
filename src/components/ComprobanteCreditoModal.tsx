@@ -17,11 +17,13 @@ import {
 import { Credito, Abono, Cliente } from '../types';
 import { ThermalPrinterService } from '../utils/thermalPrinter';
 import { compartirODescargarImagen } from '../utils/imageExport';
+import { abrirEnlaceSeguro } from '../utils/safeLink';
 
 interface ComprobanteCreditoModalProps {
   credito: Credito;
   abono?: Abono | null;
   clienteInfo?: Cliente | null;
+  tasaCambio?: number;
   onClose: () => void;
 }
 
@@ -29,8 +31,10 @@ export const ComprobanteCreditoModal: React.FC<ComprobanteCreditoModalProps> = (
   credito,
   abono,
   clienteInfo,
+  tasaCambio = 36.65,
   onClose
 }) => {
+  const tc = credito.tasaCambio || abono?.tasaCambio || tasaCambio || 36.65;
   const [anchoTicket, setAnchoTicket] = useState<'80mm' | '58mm'>('80mm');
   const [maquinitaConectada, setMaquinitaConectada] = useState<string | null>(null);
   const [mensajeMaquinita, setMensajeMaquinita] = useState<{ tipo: 'ok' | 'err'; texto: string } | null>(null);
@@ -83,9 +87,15 @@ export const ComprobanteCreditoModal: React.FC<ComprobanteCreditoModalProps> = (
     const esAbonoEspecifico = !!abono;
     const titulo = esAbonoEspecifico ? 'COMPROBANTE DE ABONO A CRÉDITO' : 'ESTADO DE CUENTA DE CRÉDITO';
     const fecha = abono ? abono.fecha : credito.fecha;
-    const montoAbonadoStr = abono ? `$${abono.montoAbonado.toFixed(2)}` : `$${credito.abonado.toFixed(2)}`;
+    const abonoUSD = abono ? abono.montoAbonado : credito.abonado;
+    const abonoNIO = abono ? (abono.montoAbonadoCordobas || (abono.montoAbonado * tc)) : (credito.abonadoCordobas || (credito.abonado * tc));
+    const montoAbonadoStr = `$${abonoUSD.toFixed(2)} USD (C$ ${abonoNIO.toFixed(2)} NIO)`;
     const metodoPagoStr = abono ? abono.metodoPago : 'Varios';
     const observacionesStr = abono ? abono.observaciones : 'Crédito en cuenta';
+
+    const totCredNIO = (credito.totalCredito * tc).toFixed(2);
+    const totAbonNIO = (credito.abonado * tc).toFixed(2);
+    const saldoNIO = (credito.saldo * tc).toFixed(2);
 
     return `🌸 *VARIEDADES CS - BOUTIQUE & ACCESORIOS* 🌸
 ------------------------------------------------
@@ -94,11 +104,12 @@ ${abono ? `🔖 *N° Abono:* ${abono.numeroAbono}\n` : ''}💳 *N° Crédito:* $
 🛒 *Venta Asociada:* ${credito.numeroVenta}
 📅 *Fecha:* ${fecha}
 👤 *Cliente:* ${credito.cliente}
+💵 *Tasa Oficial:* 1 $ USD = C$ ${tc.toFixed(2)} NIO
 ${clienteInfo?.telefono ? `📞 *Teléfono:* ${clienteInfo.telefono}\n` : ''}------------------------------------------------
 ${esAbonoEspecifico ? `💵 *MONTO ABONADO HOY:* ${montoAbonadoStr}\n💳 *Forma de Pago:* ${metodoPagoStr}\n📝 *Detalle:* ${observacionesStr}\n------------------------------------------------\n` : ''}📊 *RESUMEN DE CUENTA:*
-• Total Original Crédito: $${credito.totalCredito.toFixed(2)}
-• Total Abonado a la Fecha: $${credito.abonado.toFixed(2)}
-• *SALDO PENDIENTE:* $${credito.saldo.toFixed(2)}
+• Total Original Crédito: $${credito.totalCredito.toFixed(2)} (C$ ${totCredNIO})
+• Total Abonado a la Fecha: $${credito.abonado.toFixed(2)} (C$ ${totAbonNIO})
+• *SALDO PENDIENTE:* *$${credito.saldo.toFixed(2)} USD* (C$ ${saldoNIO} NIO)
 • *Estado:* ${credito.saldo <= 0.01 ? '✅ PAGADO TOTALMENTE' : '🟡 PENDIENTE DE PAGO'}
 • *Vencimiento:* ${credito.vencimiento}
 ------------------------------------------------
@@ -125,7 +136,7 @@ ${esAbonoEspecifico ? `💵 *MONTO ABONADO HOY:* ${montoAbonadoStr}\n💳 *Forma
       }
     }
 
-    window.open(url, '_blank', 'noopener,noreferrer');
+    abrirEnlaceSeguro(url);
   };
 
   const esPagado = credito.saldo <= 0.01;
@@ -327,18 +338,28 @@ ${esAbonoEspecifico ? `💵 *MONTO ABONADO HOY:* ${montoAbonadoStr}\n💳 *Forma
             <div className="space-y-1.5 py-2 border-b border-dashed border-slate-300 text-[11px]">
               <div className="flex justify-between">
                 <span>Total Crédito Otorgado:</span>
-                <span className="font-semibold">${credito.totalCredito.toFixed(2)}</span>
+                <span className="font-semibold">${credito.totalCredito.toFixed(2)} (C$ {(credito.totalCredito * tc).toFixed(2)})</span>
               </div>
               <div className="flex justify-between text-emerald-700">
                 <span>Total Abonado Acumulado:</span>
-                <span className="font-semibold">${credito.abonado.toFixed(2)}</span>
+                <span className="font-semibold">${credito.abonado.toFixed(2)} (C$ {(credito.abonado * tc).toFixed(2)})</span>
               </div>
 
               <div className="flex justify-between items-center pt-2 border-t border-slate-200 text-xs font-bold text-slate-900">
                 <span className="text-rose-900 font-extrabold uppercase">CRÉDITO: MONTO A DEBER:</span>
-                <span className={`text-base font-black font-mono ${esPagado ? 'text-emerald-600' : 'text-rose-600'}`}>
-                  ${credito.saldo.toFixed(2)}
-                </span>
+                <div className="text-right">
+                  <span className={`text-base font-black font-mono block ${esPagado ? 'text-emerald-600' : 'text-rose-600'}`}>
+                    ${credito.saldo.toFixed(2)}
+                  </span>
+                  <span className="text-xs font-black text-rose-800 block">
+                    = C$ {(credito.saldo * tc).toFixed(2)} NIO
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex justify-between text-[10px] text-slate-500 pt-0.5">
+                <span>Tasa Oficial Aplicada:</span>
+                <span className="font-mono font-bold">1 $ USD = C$ {tc.toFixed(2)}</span>
               </div>
 
               <div className="flex justify-between text-[10px] pt-1">

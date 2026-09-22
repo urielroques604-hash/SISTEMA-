@@ -42,9 +42,11 @@ import { VaciarBaseDatosModal, ModoLimpieza } from './components/VaciarBaseDatos
 import { CambiarPasswordModal } from './components/CambiarPasswordModal';
 import { ResetPasswordHandlerModal } from './components/ResetPasswordHandlerModal';
 import { GmailView } from './components/GmailView';
+import { ModalTasaCambio } from './components/ModalTasaCambio';
 import { googleSignOut } from './services/gmailAuth';
 import { exportarTodoAExcel, exportarVentasExcel, exportarInventarioExcel } from './utils/exportExcel';
 import { firestoreSync } from './services/firebase';
+import { obtenerTasaCambio, guardarTasaCambio, aCordobas, aDolares } from './utils/currency';
 import { CheckCircle2, Info, LayoutDashboard, ShoppingBag, Package, Receipt, Menu } from 'lucide-react';
 
 export default function App() {
@@ -64,6 +66,18 @@ export default function App() {
   const [modoSinImagenes, setModoSinImagenes] = useState<boolean>(() => {
     return localStorage.getItem('cs_sin_imagenes') === 'true';
   });
+
+  // Tasa de cambio oficial Dólares / Córdobas
+  const [tasaCambio, setTasaCambio] = useState<number>(() => obtenerTasaCambio());
+  const [modalTasaAbierto, setModalTasaAbierto] = useState<boolean>(false);
+
+  useEffect(() => {
+    const handleTasaUpdate = () => {
+      setTasaCambio(obtenerTasaCambio());
+    };
+    window.addEventListener('cs_tasa_cambio_actualizada', handleTasaUpdate);
+    return () => window.removeEventListener('cs_tasa_cambio_actualizada', handleTasaUpdate);
+  }, []);
   const [modalCambiarPasswordAbierto, setModalCambiarPasswordAbierto] = useState<boolean>(false);
 
   const toggleModoSinImagenes = () => {
@@ -349,7 +363,7 @@ export default function App() {
   // Carga inicial y sincronización con Firebase Firestore en la nube
   useEffect(() => {
     let cancelado = false;
-    async function sincronizarDesdeNube() {
+    const timer = setTimeout(async () => {
       try {
         const [
           prodsRemotos,
@@ -381,13 +395,15 @@ export default function App() {
         if (abonosRemotos && abonosRemotos.length > 0) setAbonos(abonosRemotos);
         if (cajaRemota && cajaRemota.length > 0) setCaja(cajaRemota);
         if (comprasRemotas && comprasRemotas.length > 0) setCompras(comprasRemotas);
-      } catch (err) {
-        console.warn('Sincronización inicial con Firestore:', err);
+      } catch {
+        // En caso de modo offline, el sistema opera transparente con el almacenamiento local
       }
-    }
+    }, 300);
 
-    sincronizarDesdeNube();
-    return () => { cancelado = true; };
+    return () => {
+      cancelado = true;
+      clearTimeout(timer);
+    };
   }, []);
 
   // Saldo actual de caja
@@ -478,11 +494,16 @@ export default function App() {
     nombreCliente?: string;
     efectivoRecibido?: number;
     cambio?: number;
+    efectivoRecibidoCordobas?: number;
+    cambioCordobas?: number;
+    monedaPago?: 'USD' | 'NIO';
+    tasaCambio?: number;
     fechaVencimiento?: string;
   }) => {
     const numVenta = `V-${String(ventas.length + 1).padStart(5, '0')}`;
     const fechaHora = getFechaHora();
     const usuarioActual = usuario || 'SISTEMA';
+    const tc = datos.tasaCambio || tasaCambio;
 
     // Descontar existencias
     const nuevosProductos = [...productos];
@@ -500,6 +521,7 @@ export default function App() {
     // Registrar ventas
     const subtotal = datos.items.reduce((s, it) => s + (it.cantidad * it.precioUnitario), 0);
     const totalFinal = Math.max(0, subtotal - datos.descuento);
+    const totalFinalCordobas = totalFinal * tc;
 
     let numCredito = '';
     if (datos.formaPago === 'Crédito') {
@@ -511,8 +533,12 @@ export default function App() {
         cliente: datos.nombreCliente || 'Cliente',
         numeroVenta: numVenta,
         totalCredito: totalFinal,
+        totalCreditoCordobas: totalFinalCordobas,
         abonado: 0,
+        abonadoCordobas: 0,
         saldo: totalFinal,
+        saldoCordobas: totalFinalCordobas,
+        tasaCambio: tc,
         vencimiento: datos.fechaVencimiento || '',
         estado: 'PENDIENTE'
       };
@@ -520,24 +546,36 @@ export default function App() {
       firestoreSync.guardarDocumento('creditos', numCredito, nuevoCredito);
     }
 
-    const nuevasLineasVenta: VentaRegistro[] = datos.items.map(it => ({
-      numeroVenta: numVenta,
-      fecha: fechaHora,
-      codigo: it.codigo,
-      producto: it.producto,
-      categoria: it.categoria,
-      cantidad: it.cantidad,
-      precioUnitario: it.precioUnitario,
-      total: it.cantidad * it.precioUnitario,
-      formaPago: datos.formaPago,
-      cliente: datos.nombreCliente || 'Consumidor Final',
-      idCliente: datos.idCliente,
-      efectivoRecibido: datos.efectivoRecibido,
-      cambio: datos.cambio,
-      numCredito: numCredito,
-      usuario: usuarioActual,
-      estado: 'COMPLETADA'
-    }));
+    const nuevasLineasVenta: VentaRegistro[] = datos.items.map(it => {
+      const pUnitNIO = it.precioUnitarioCordobas || (it.precioUnitario * tc);
+      const totUSD = it.cantidad * it.precioUnitario;
+      const totNIO = totUSD * tc;
+
+      return {
+        numeroVenta: numVenta,
+        fecha: fechaHora,
+        codigo: it.codigo,
+        producto: it.producto,
+        categoria: it.categoria,
+        cantidad: it.cantidad,
+        precioUnitario: it.precioUnitario,
+        precioUnitarioCordobas: pUnitNIO,
+        total: totUSD,
+        totalCordobas: totNIO,
+        tasaCambio: tc,
+        formaPago: datos.formaPago,
+        monedaPago: datos.monedaPago || 'USD',
+        cliente: datos.nombreCliente || 'Consumidor Final',
+        idCliente: datos.idCliente,
+        efectivoRecibido: datos.efectivoRecibido,
+        efectivoRecibidoCordobas: datos.efectivoRecibidoCordobas,
+        cambio: datos.cambio,
+        cambioCordobas: datos.cambioCordobas,
+        numCredito: numCredito,
+        usuario: usuarioActual,
+        estado: 'COMPLETADA'
+      };
+    });
 
     setVentas([...nuevasLineasVenta, ...ventas]);
 
@@ -558,6 +596,9 @@ export default function App() {
         tipo: 'Venta',
         concepto: `Venta ${numVenta} (${datos.formaPago})`,
         monto: totalFinal,
+        montoCordobas: totalFinalCordobas,
+        tasaCambio: tc,
+        saldoCordobas: (saldoCajaActual + totalFinal) * tc,
         usuario: usuarioActual,
         saldo: saldoCajaActual + totalFinal
       };
@@ -569,7 +610,7 @@ export default function App() {
 
     return {
       success: true,
-      mensaje: `¡Venta ${numVenta} procesada con éxito por un total de $${totalFinal.toFixed(2)}!`,
+      mensaje: `¡Venta ${numVenta} procesada con éxito por un total de $${totalFinal.toFixed(2)} (C$ ${totalFinalCordobas.toFixed(2)})!`,
       numeroVenta: numVenta
     };
   };
@@ -631,22 +672,30 @@ export default function App() {
     };
   };
 
-  // 4. REGISTRAR COMPRA
+  // 4. REGISTRAR COMPRA (DUAL CURRENCY)
   const registrarCompra = (datos: {
     codigo: string;
     producto: string;
     categoria: string;
     cantidad: number;
     precioCompra: number;
+    precioCompraCordobas?: number;
     precioVenta: number;
+    precioVentaCordobas?: number;
+    tasaCambio?: number;
+    totalCordobas?: number;
     proveedor: string;
     pagarDesdeCaja: boolean;
   }) => {
     const numCompra = `C-${String(Date.now()).slice(-5)}`;
     const fechaHora = getFechaHora();
+    const tc = datos.tasaCambio || tasaCambio;
     const totalCompra = datos.cantidad * datos.precioCompra;
+    const pCompraCordobas = datos.precioCompraCordobas || (datos.precioCompra * tc);
+    const pVentaCordobas = datos.precioVentaCordobas || (datos.precioVenta * tc);
+    const totalCompraCordobas = datos.totalCordobas || (totalCompra * tc);
 
-    // Aumentar stock
+    // Aumentar stock y actualizar precios
     const idx = productos.findIndex(p => p.codigo === datos.codigo);
     if (idx !== -1) {
       const p = productos[idx];
@@ -654,7 +703,9 @@ export default function App() {
         ...p,
         existencia: p.existencia + datos.cantidad,
         precioCompra: datos.precioCompra,
-        precioVenta: datos.precioVenta || p.precioVenta
+        precioCompraCordobas: pCompraCordobas,
+        precioVenta: datos.precioVenta || p.precioVenta,
+        precioVentaCordobas: pVentaCordobas || p.precioVentaCordobas
       };
       setProductos([...productos]);
     } else {
@@ -664,7 +715,9 @@ export default function App() {
         categoria: datos.categoria,
         existencia: datos.cantidad,
         precioCompra: datos.precioCompra,
-        precioVenta: datos.precioVenta
+        precioCompraCordobas: pCompraCordobas,
+        precioVenta: datos.precioVenta,
+        precioVentaCordobas: pVentaCordobas
       }]);
     }
 
@@ -677,8 +730,15 @@ export default function App() {
       categoria: datos.categoria,
       cantidad: datos.cantidad,
       precioUnitario: datos.precioCompra,
+      precioCompra: datos.precioCompra,
+      precioCompraCordobas: pCompraCordobas,
+      precioVenta: datos.precioVenta,
+      precioVentaCordobas: pVentaCordobas,
       total: totalCompra,
-      proveedor: datos.proveedor
+      totalCordobas: totalCompraCordobas,
+      tasaCambio: tc,
+      proveedor: datos.proveedor,
+      pagadoDesdeCaja: datos.pagarDesdeCaja
     };
     setCompras([compraRecord, ...compras]);
     firestoreSync.guardarDocumento('compras', numCompra, compraRecord);
@@ -692,6 +752,9 @@ export default function App() {
         tipo: 'Egreso',
         concepto: `Pago Compra Mercadería ${numCompra} (${datos.producto})`,
         monto: -totalCompra,
+        montoCordobas: -totalCompraCordobas,
+        tasaCambio: tc,
+        saldoCordobas: (saldoCajaActual - totalCompra) * tc,
         usuario: usuario || 'SISTEMA',
         saldo: saldoCajaActual - totalCompra
       }]);
@@ -703,18 +766,29 @@ export default function App() {
     };
   };
 
-  // 5. REGISTRAR ABONO
+  // 5. REGISTRAR ABONO (DUAL CURRENCY)
   const registrarAbono = (datos: {
     numeroCredito: string;
     montoAbonado: number;
+    montoAbonadoCordobas?: number;
+    tasaCambio?: number;
     metodoPago: string;
     observaciones: string;
   }) => {
     const target = creditos.find(c => c.numeroCredito === datos.numeroCredito);
     if (!target) return { success: false, mensaje: 'Crédito no encontrado.' };
 
+    const tc = datos.tasaCambio || target.tasaCambio || tasaCambio;
+    const montoAbonadoNIO = datos.montoAbonadoCordobas !== undefined 
+      ? datos.montoAbonadoCordobas 
+      : (datos.montoAbonado * tc);
+
     const nuevoAbonado = target.abonado + datos.montoAbonado;
+    const nuevoAbonadoNIO = (target.abonadoCordobas || (target.abonado * tc)) + montoAbonadoNIO;
+
     const nuevoSaldo = Math.max(0, target.saldo - datos.montoAbonado);
+    const nuevoSaldoNIO = Math.max(0, nuevoSaldo * tc);
+
     const nuevoEstado = nuevoSaldo <= 0.01 ? 'PAGADO' : 'PENDIENTE';
     const fechaHora = getFechaHora();
     const numAbono = `AB-${String(abonos.length + 1).padStart(5, '0')}`;
@@ -722,7 +796,10 @@ export default function App() {
     const creditoActualizado: Credito = {
       ...target,
       abonado: nuevoAbonado,
+      abonadoCordobas: nuevoAbonadoNIO,
       saldo: nuevoSaldo,
+      saldoCordobas: nuevoSaldoNIO,
+      tasaCambio: tc,
       estado: nuevoEstado
     };
 
@@ -741,6 +818,8 @@ export default function App() {
       idCliente: target.idCliente,
       cliente: target.cliente,
       montoAbonado: datos.montoAbonado,
+      montoAbonadoCordobas: montoAbonadoNIO,
+      tasaCambio: tc,
       metodoPago: datos.metodoPago,
       observaciones: datos.observaciones
     };
@@ -758,6 +837,9 @@ export default function App() {
       tipo: 'Abono',
       concepto: `Abono ${numAbono} a ${datos.numeroCredito} (${target.cliente})`,
       monto: datos.montoAbonado,
+      montoCordobas: montoAbonadoNIO,
+      tasaCambio: tc,
+      saldoCordobas: (saldoCajaActual + datos.montoAbonado) * tc,
       usuario: usuario || 'SISTEMA',
       saldo: saldoCajaActual + datos.montoAbonado
     };
@@ -766,18 +848,30 @@ export default function App() {
 
     return {
       success: true,
-      mensaje: `Abono ${numAbono} recibido por $${datos.montoAbonado.toFixed(2)}. Saldo restante: $${nuevoSaldo.toFixed(2)}.`,
+      mensaje: `Abono ${numAbono} recibido por $${datos.montoAbonado.toFixed(2)} (C$ ${montoAbonadoNIO.toFixed(2)}). Saldo restante: $${nuevoSaldo.toFixed(2)}.`,
       abono: abonoRecord,
       credito: creditoActualizado
     };
   };
 
-  // 6. CAJA MOVIMIENTO MANUAL Y CIERRE
-  const registrarMovimientoCaja = (datos: { tipo: string; concepto: string; monto: number }) => {
+  // 6. CAJA MOVIMIENTO MANUAL Y CIERRE (DUAL CURRENCY)
+  const registrarMovimientoCaja = (datos: {
+    tipo: string;
+    concepto: string;
+    monto: number;
+    montoCordobas?: number;
+    tasaCambio?: number;
+  }) => {
     const fechaHora = getFechaHora();
     const idCaja = `CJ-${String(caja.length + 1).padStart(5, '0')}`;
+    const tc = datos.tasaCambio || tasaCambio;
     const realMonto = datos.tipo === 'Egreso' ? -Math.abs(datos.monto) : Math.abs(datos.monto);
+    const realMontoCordobas = datos.montoCordobas !== undefined 
+      ? (datos.tipo === 'Egreso' ? -Math.abs(datos.montoCordobas) : Math.abs(datos.montoCordobas))
+      : (realMonto * tc);
+
     const nuevoSaldo = saldoCajaActual + realMonto;
+    const nuevoSaldoCordobas = nuevoSaldo * tc;
 
     const mov: MovimientoCaja = {
       id: idCaja,
@@ -785,6 +879,9 @@ export default function App() {
       tipo: datos.tipo,
       concepto: datos.concepto,
       monto: realMonto,
+      montoCordobas: realMontoCordobas,
+      tasaCambio: tc,
+      saldoCordobas: nuevoSaldoCordobas,
       usuario: usuario || 'SISTEMA',
       saldo: nuevoSaldo
     };
@@ -893,6 +990,8 @@ export default function App() {
           titulo={titulosVista[vistaActual] || 'VARIEDADES CS'}
           usuario={usuario || 'Usuario'}
           saldoCaja={saldoCajaActual}
+          tasaCambio={tasaCambio}
+          onAbrirModalTasa={() => setModalTasaAbierto(true)}
           onExportarExcel={handleExportarTodoExcel}
           onImportarExcel={() => setModalImportarAbierto(true)}
           onLimpiarTodo={() => setModalVaciarAbierto(true)}
@@ -910,6 +1009,7 @@ export default function App() {
               ventas={ventas}
               creditos={creditos}
               saldoCaja={saldoCajaActual}
+              tasaCambio={tasaCambio}
               onNavigate={setVistaActual}
             />
           )}
@@ -920,6 +1020,7 @@ export default function App() {
               clientes={clientes}
               carrito={carrito}
               setCarrito={setCarrito}
+              tasaCambio={tasaCambio}
               modoSinImagenes={modoSinImagenes}
               onToggleModoSinImagenes={toggleModoSinImagenes}
               onFinalizarVenta={registrarVenta}
@@ -929,6 +1030,8 @@ export default function App() {
           {vistaActual === 'productos' && (
             <ProductosView
               productos={productos}
+              tasaCambio={tasaCambio}
+              onAbrirModalTasa={() => setModalTasaAbierto(true)}
               modoSinImagenes={modoSinImagenes}
               onToggleModoSinImagenes={toggleModoSinImagenes}
               onGuardarProducto={guardarProducto}
@@ -941,6 +1044,7 @@ export default function App() {
           {vistaActual === 'ventas' && (
             <VentasView
               ventas={ventas}
+              tasaCambio={tasaCambio}
               onVerFactura={(num) => setFacturaVentaId(num)}
               onIrAnular={(num) => {
                 setVentaAAnularId(num);
@@ -966,6 +1070,7 @@ export default function App() {
               </div>
               <VentasView
                 ventas={ventas}
+                tasaCambio={tasaCambio}
                 onVerFactura={(num) => setFacturaVentaId(num)}
                 onIrAnular={(num) => {
                   setVentaAAnularId(num);
@@ -981,6 +1086,8 @@ export default function App() {
               productos={productos}
               proveedores={proveedores}
               compras={compras}
+              tasaCambio={tasaCambio}
+              onAbrirModalTasa={() => setModalTasaAbierto(true)}
               onRegistrarCompra={registrarCompra}
             />
           )}
@@ -1006,6 +1113,8 @@ export default function App() {
               creditos={creditos}
               abonos={abonos}
               clientes={clientes}
+              tasaCambio={tasaCambio}
+              onAbrirModalTasa={() => setModalTasaAbierto(true)}
               onRegistrarAbono={registrarAbono}
             />
           )}
@@ -1014,6 +1123,7 @@ export default function App() {
             <CxcView
               cuentasPorCobrar={cuentasPorCobrar}
               clientes={clientes}
+              tasaCambio={tasaCambio}
             />
           )}
 
@@ -1022,6 +1132,8 @@ export default function App() {
               movimientos={caja}
               saldoActual={saldoCajaActual}
               usuario={usuario || 'SISTEMA'}
+              tasaCambio={tasaCambio}
+              onAbrirModalTasa={() => setModalTasaAbierto(true)}
               onRegistrarMovimiento={registrarMovimientoCaja}
               onCerrarCaja={cerrarCaja}
             />
@@ -1030,6 +1142,7 @@ export default function App() {
           {vistaActual === 'inventario' && (
             <InventarioView
               productos={productos}
+              tasaCambio={tasaCambio}
               onExportarExcel={() => exportarInventarioExcel(productos)}
             />
           )}
@@ -1050,7 +1163,21 @@ export default function App() {
           numeroVenta={facturaVentaId}
           ventas={ventas}
           clientes={clientes}
+          tasaCambio={tasaCambio}
           onClose={() => setFacturaVentaId(null)}
+        />
+      )}
+
+      {/* Modal de Tasa de Cambio */}
+      {modalTasaAbierto && (
+        <ModalTasaCambio
+          tasaActual={tasaCambio}
+          onGuardarTasa={(nueva) => {
+            guardarTasaCambio(nueva);
+            setTasaCambio(nueva);
+            mostrarToast(`Tasa de cambio actualizada: 1 $ USD = C$ ${nueva.toFixed(2)} NIO`);
+          }}
+          onClose={() => setModalTasaAbierto(false)}
         />
       )}
 

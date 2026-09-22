@@ -14,9 +14,12 @@ import {
   CheckCircle2, 
   Sparkles, 
   ImageIcon,
-  ImageOff
+  ImageOff,
+  Coins,
+  ArrowRightLeft
 } from 'lucide-react';
 import { Producto } from '../types';
+import { formatoUSD, formatoNIO, aCordobas, aDolares } from '../utils/currency';
 import { 
   MARCAS_PERFUMES_POPULARES, 
   buscarImagenesPorMarca, 
@@ -26,6 +29,8 @@ import {
 
 interface ProductosProps {
   productos: Producto[];
+  tasaCambio?: number;
+  onAbrirModalTasa?: () => void;
   onGuardarProducto: (prod: Producto) => void;
   onEliminarProducto: (codigo: string) => void;
   onExportarExcel?: () => void;
@@ -36,6 +41,8 @@ interface ProductosProps {
 
 export const ProductosView: React.FC<ProductosProps> = ({
   productos,
+  tasaCambio = 36.65,
+  onAbrirModalTasa,
   onGuardarProducto,
   onEliminarProducto,
   onExportarExcel,
@@ -61,9 +68,54 @@ export const ProductosView: React.FC<ProductosProps> = ({
   const [formImagen, setFormImagen] = useState('');
   const [formSinImagen, setFormSinImagen] = useState(false);
   const [formExistencia, setFormExistencia] = useState(0);
-  const [formPrecioCompra, setFormPrecioCompra] = useState(0);
-  const [formPrecioVenta, setFormPrecioVenta] = useState(0);
+  const [monedaPrecios, setMonedaPrecios] = useState<'NIO' | 'USD'>('NIO');
+  const [formPrecioCompraUSD, setFormPrecioCompraUSD] = useState<string>('15.00');
+  const [formPrecioCompraNIO, setFormPrecioCompraNIO] = useState<string>('');
+  const [formPrecioVentaUSD, setFormPrecioVentaUSD] = useState<string>('25.00');
+  const [formPrecioVentaNIO, setFormPrecioVentaNIO] = useState<string>('');
   const [errorMsg, setErrorMsg] = useState('');
+
+  // Sincronizar precios de compra
+  const handleCompraUSDChange = (valStr: string) => {
+    setFormPrecioCompraUSD(valStr);
+    const val = parseFloat(valStr);
+    if (!isNaN(val) && val >= 0) {
+      setFormPrecioCompraNIO((val * tasaCambio).toFixed(2));
+    } else {
+      setFormPrecioCompraNIO('');
+    }
+  };
+
+  const handleCompraNIOChange = (valStr: string) => {
+    setFormPrecioCompraNIO(valStr);
+    const val = parseFloat(valStr);
+    if (!isNaN(val) && val >= 0 && tasaCambio > 0) {
+      setFormPrecioCompraUSD((val / tasaCambio).toFixed(2));
+    } else {
+      setFormPrecioCompraUSD('');
+    }
+  };
+
+  // Sincronizar precios de venta
+  const handleVentaUSDChange = (valStr: string) => {
+    setFormPrecioVentaUSD(valStr);
+    const val = parseFloat(valStr);
+    if (!isNaN(val) && val >= 0) {
+      setFormPrecioVentaNIO((val * tasaCambio).toFixed(2));
+    } else {
+      setFormPrecioVentaNIO('');
+    }
+  };
+
+  const handleVentaNIOChange = (valStr: string) => {
+    setFormPrecioVentaNIO(valStr);
+    const val = parseFloat(valStr);
+    if (!isNaN(val) && val >= 0 && tasaCambio > 0) {
+      setFormPrecioVentaUSD((val / tasaCambio).toFixed(2));
+    } else {
+      setFormPrecioVentaUSD('');
+    }
+  };
 
   // Selector visual de imágenes por marca
   const [mostrarSelectorImagenes, setMostrarSelectorImagenes] = useState(false);
@@ -88,8 +140,10 @@ export const ProductosView: React.FC<ProductosProps> = ({
     setFormImagen('');
     setFormSinImagen(false);
     setFormExistencia(10);
-    setFormPrecioCompra(15.00);
-    setFormPrecioVenta(25.00);
+    setFormPrecioCompraUSD('15.00');
+    setFormPrecioCompraNIO((15.00 * tasaCambio).toFixed(2));
+    setFormPrecioVentaUSD('25.00');
+    setFormPrecioVentaNIO((25.00 * tasaCambio).toFixed(2));
     setErrorMsg('');
     setMostrarSelectorImagenes(false);
     setModalAbierto(true);
@@ -104,8 +158,17 @@ export const ProductosView: React.FC<ProductosProps> = ({
     setFormImagen(prod.imagen || '');
     setFormSinImagen(prod.sinImagen === true || !prod.imagen);
     setFormExistencia(prod.existencia);
-    setFormPrecioCompra(prod.precioCompra);
-    setFormPrecioVenta(prod.precioVenta);
+    
+    const compUSD = prod.precioCompra;
+    setFormPrecioCompraUSD(compUSD.toFixed(2));
+    const compNIO = prod.precioCompraCordobas || (compUSD * tasaCambio);
+    setFormPrecioCompraNIO(compNIO.toFixed(2));
+
+    const ventUSD = prod.precioVenta;
+    setFormPrecioVentaUSD(ventUSD.toFixed(2));
+    const ventNIO = prod.precioVentaCordobas || (ventUSD * tasaCambio);
+    setFormPrecioVentaNIO(ventNIO.toFixed(2));
+
     setErrorMsg('');
     setMostrarSelectorImagenes(false);
     setModalAbierto(true);
@@ -174,6 +237,11 @@ export const ProductosView: React.FC<ProductosProps> = ({
     // Respetar opción de no llevar imagen o imagen asignada
     const imagenFinal = formSinImagen ? '' : formImagen.trim();
 
+    const pCompUSD = parseFloat(formPrecioCompraUSD) || 0;
+    const pCompNIO = parseFloat(formPrecioCompraNIO) || (pCompUSD * tasaCambio);
+    const pVentUSD = parseFloat(formPrecioVentaUSD) || 0;
+    const pVentNIO = parseFloat(formPrecioVentaNIO) || (pVentUSD * tasaCambio);
+
     onGuardarProducto({
       codigo: formCodigo.trim().toUpperCase(),
       producto: formNombre.trim(),
@@ -182,8 +250,10 @@ export const ProductosView: React.FC<ProductosProps> = ({
       imagen: imagenFinal,
       sinImagen: formSinImagen || !imagenFinal,
       existencia: Number(formExistencia) || 0,
-      precioCompra: Number(formPrecioCompra) || 0,
-      precioVenta: Number(formPrecioVenta) || 0
+      precioCompra: pCompUSD,
+      precioCompraCordobas: pCompNIO,
+      precioVenta: pVentUSD,
+      precioVentaCordobas: pVentNIO
     });
 
     setModalAbierto(false);
@@ -296,8 +366,8 @@ export const ProductosView: React.FC<ProductosProps> = ({
                 <th className="px-4 py-3">Producto / Marca</th>
                 <th className="px-3 py-3">Categoría</th>
                 <th className="px-3 py-3 text-center">Existencia</th>
-                <th className="px-3 py-3 text-right">P. Compra</th>
-                <th className="px-3 py-3 text-right">P. Venta</th>
+                <th className="px-3 py-3 text-right">P. Compra ($ / C$)</th>
+                <th className="px-3 py-3 text-right">P. Venta ($ / C$)</th>
                 <th className="px-3 py-3 text-center">Estado</th>
                 <th className="px-3 py-3 text-center">Acciones</th>
               </tr>
@@ -345,8 +415,18 @@ export const ProductosView: React.FC<ProductosProps> = ({
                         <span className="text-slate-800">{prod.existencia}</span>
                       )}
                     </td>
-                    <td className="px-3 py-3 text-right text-slate-600">${prod.precioCompra.toFixed(2)}</td>
-                    <td className="px-3 py-3 text-right font-bold text-blue-600">${prod.precioVenta.toFixed(2)}</td>
+                    <td className="px-3 py-3 text-right">
+                      <span className="font-bold text-slate-700 block">{formatoUSD(prod.precioCompra)}</span>
+                      <span className="text-[10px] text-slate-500 font-medium">
+                        {formatoNIO(prod.precioCompraCordobas || (prod.precioCompra * tasaCambio))}
+                      </span>
+                    </td>
+                    <td className="px-3 py-3 text-right">
+                      <span className="font-extrabold text-blue-600 block">{formatoUSD(prod.precioVenta)}</span>
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200 inline-block">
+                        {formatoNIO(prod.precioVentaCordobas || (prod.precioVenta * tasaCambio))}
+                      </span>
+                    </td>
                     <td className="px-3 py-3 text-center">
                       {esAgotado ? (
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700">
@@ -633,40 +713,236 @@ export const ProductosView: React.FC<ProductosProps> = ({
               </div>
 
               <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Existencia</label>
+                <div className="col-span-3">
+                  <label className="block font-semibold text-slate-700 mb-1">Existencia (Stock)</label>
                   <input
                     type="number"
                     min="0"
                     value={formExistencia}
                     onChange={e => setFormExistencia(Number(e.target.value) || 0)}
-                    className="w-full p-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    className="w-full p-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-bold text-slate-800"
                   />
+                </div>
+              </div>
+
+              {/* Indicador de Tasa en Modal */}
+              <div className="flex items-center justify-between p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 text-xs">
+                <div className="flex items-center gap-1.5 text-emerald-800">
+                  <Coins className="w-4 h-4 text-emerald-600" />
+                  <span className="font-bold">Tasa Oficial:</span>
+                  <span className="font-mono font-black">1 $ = C$ {tasaCambio.toFixed(2)}</span>
+                </div>
+                {onAbrirModalTasa && (
+                  <button
+                    type="button"
+                    onClick={onAbrirModalTasa}
+                    className="text-[11px] text-emerald-700 hover:text-emerald-900 underline font-bold"
+                  >
+                    Cambiar Tasa
+                  </button>
+                )}
+              </div>
+
+              {/* SELECTOR DE MONEDA PARA PRECIOS DEL PRODUCTO */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Seleccionar Moneda para Fijar Precios del Producto:
+                </label>
+                <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-xl border border-slate-200">
+                  <button
+                    type="button"
+                    onClick={() => setMonedaPrecios('NIO')}
+                    className={`py-2 px-3 rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition ${
+                      monedaPrecios === 'NIO'
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900 bg-white/50'
+                    }`}
+                  >
+                    <span>C$ Córdobas (NIO)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMonedaPrecios('USD')}
+                    className={`py-2 px-3 rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition ${
+                      monedaPrecios === 'USD'
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900 bg-white/50'
+                    }`}
+                  >
+                    <span>$ Dólares (USD)</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* PRECIO DE COMPRA MULTIMONEDA */}
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block font-bold text-slate-800 text-xs">
+                    Precio de Compra (Costo Unitario) *
+                  </label>
+                  <span className="text-[10px] text-slate-500 flex items-center gap-1">
+                    <ArrowRightLeft className="w-3 h-3 text-slate-400" />
+                    Conversión automática
+                  </span>
                 </div>
 
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">P. Compra ($)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={formPrecioCompra}
-                    onChange={e => setFormPrecioCompra(Number(e.target.value) || 0)}
-                    className="w-full p-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                  />
+                {monedaPrecios === 'NIO' ? (
+                  /* ENTRADA PRINCIPAL COMPRA: CÓRDOBAS */
+                  <div className="space-y-1.5">
+                    <div>
+                      <span className="block text-[10px] font-bold text-emerald-800 mb-0.5">
+                        Precio de Compra en Córdobas (C$ NIO) - Principal
+                      </span>
+                      <div className="relative">
+                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 font-black text-emerald-600 text-xs">C$</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.50"
+                          value={formPrecioCompraNIO}
+                          onChange={e => handleCompraNIOChange(e.target.value)}
+                          placeholder="0.00"
+                          className="w-full pl-8 pr-2 py-2 bg-white border-2 border-emerald-500 rounded-lg font-black text-slate-900 outline-none focus:ring-2 focus:ring-emerald-400 text-sm shadow-2xs"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs">
+                      <span className="text-[11px] text-slate-500">Equivalente en Dólares ($):</span>
+                      <div className="flex items-center gap-1 font-bold text-slate-800">
+                        <span>$</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={formPrecioCompraUSD}
+                          onChange={e => handleCompraUSDChange(e.target.value)}
+                          className="w-20 text-right p-0.5 font-bold outline-none text-blue-700 bg-transparent"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  /* ENTRADA PRINCIPAL COMPRA: DÓLARES */
+                  <div className="space-y-1.5">
+                    <div>
+                      <span className="block text-[10px] font-bold text-blue-800 mb-0.5">
+                        Precio de Compra en Dólares ($ USD) - Principal
+                      </span>
+                      <div className="relative">
+                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 font-black text-blue-600 text-xs">$</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={formPrecioCompraUSD}
+                          onChange={e => handleCompraUSDChange(e.target.value)}
+                          placeholder="0.00"
+                          className="w-full pl-7 pr-2 py-2 bg-white border-2 border-blue-500 rounded-lg font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-400 text-sm shadow-2xs"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs">
+                      <span className="text-[11px] text-slate-500">Equivalente en Córdobas (C$):</span>
+                      <div className="flex items-center gap-1 font-bold text-slate-800">
+                        <span>C$</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.50"
+                          value={formPrecioCompraNIO}
+                          onChange={e => handleCompraNIOChange(e.target.value)}
+                          className="w-24 text-right p-0.5 font-bold outline-none text-emerald-700 bg-transparent"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* PRECIO DE VENTA MULTIMONEDA */}
+              <div className="p-3 bg-blue-50/60 border border-blue-200 rounded-xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block font-bold text-blue-900 text-xs">
+                    Precio de Venta al Público *
+                  </label>
+                  {parseFloat(formPrecioVentaUSD) > parseFloat(formPrecioCompraUSD) && (
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
+                      Margen: {formatoUSD(parseFloat(formPrecioVentaUSD) - (parseFloat(formPrecioCompraUSD) || 0))} / {formatoNIO(parseFloat(formPrecioVentaNIO) - (parseFloat(formPrecioCompraNIO) || 0))}
+                    </span>
+                  )}
                 </div>
 
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">P. Venta ($)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={formPrecioVenta}
-                    onChange={e => setFormPrecioVenta(Number(e.target.value) || 0)}
-                    className="w-full p-2 border border-slate-200 rounded-lg font-bold text-blue-600 focus:ring-2 focus:ring-blue-500 outline-none"
-                  />
-                </div>
+                {monedaPrecios === 'NIO' ? (
+                  /* ENTRADA PRINCIPAL VENTA: CÓRDOBAS */
+                  <div className="space-y-1.5">
+                    <div>
+                      <span className="block text-[10px] font-bold text-emerald-800 mb-0.5">
+                        Precio de Venta en Córdobas (C$ NIO) - Principal
+                      </span>
+                      <div className="relative">
+                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 font-black text-emerald-600 text-xs">C$</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.50"
+                          value={formPrecioVentaNIO}
+                          onChange={e => handleVentaNIOChange(e.target.value)}
+                          placeholder="0.00"
+                          className="w-full pl-8 pr-2 py-2 bg-white border-2 border-emerald-500 rounded-lg font-black text-emerald-700 outline-none focus:ring-2 focus:ring-emerald-400 text-base shadow-2xs"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between px-2 py-1 bg-white border border-blue-200 rounded-lg text-xs">
+                      <span className="text-[11px] text-slate-500">Equivalente en Dólares ($):</span>
+                      <div className="flex items-center gap-1 font-bold text-slate-800">
+                        <span>$</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={formPrecioVentaUSD}
+                          onChange={e => handleVentaUSDChange(e.target.value)}
+                          className="w-20 text-right p-0.5 font-bold outline-none text-blue-700 bg-transparent"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  /* ENTRADA PRINCIPAL VENTA: DÓLARES */
+                  <div className="space-y-1.5">
+                    <div>
+                      <span className="block text-[10px] font-bold text-blue-800 mb-0.5">
+                        Precio de Venta en Dólares ($ USD) - Principal
+                      </span>
+                      <div className="relative">
+                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 font-black text-blue-600 text-xs">$</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={formPrecioVentaUSD}
+                          onChange={e => handleVentaUSDChange(e.target.value)}
+                          placeholder="0.00"
+                          className="w-full pl-7 pr-2 py-2 bg-white border-2 border-blue-500 rounded-lg font-black text-blue-600 outline-none focus:ring-2 focus:ring-blue-400 text-base shadow-2xs"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between px-2 py-1 bg-white border border-blue-200 rounded-lg text-xs">
+                      <span className="text-[11px] text-slate-500">Equivalente en Córdobas (C$):</span>
+                      <div className="flex items-center gap-1 font-bold text-slate-800">
+                        <span>C$</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.50"
+                          value={formPrecioVentaNIO}
+                          onChange={e => handleVentaNIOChange(e.target.value)}
+                          className="w-24 text-right p-0.5 font-bold outline-none text-emerald-700 bg-transparent"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="pt-4 flex items-center justify-between border-t border-slate-100">

@@ -7,13 +7,15 @@ import {
 } from 'firebase/auth';
 import { 
   getFirestore, 
+  setLogLevel,
   doc, 
-  getDocFromServer,
+  getDoc,
   collection,
   getDocs,
   setDoc,
   deleteDoc,
-  writeBatch
+  writeBatch,
+  type Firestore
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
@@ -113,29 +115,25 @@ export async function restablecerPasswordConCodigo(oobCode: string, nuevaPasswor
   }
 }
 
-// Inicializar Firestore con la base de datos configurada en firebase-applet-config.json
-const dbId = (firebaseConfig as any).firestoreDatabaseId;
-export const db = dbId ? getFirestore(app, dbId) : getFirestore(app);
-
-// Validar la conexión con Firestore según la directiva del sistema
-export async function validarConexionFirestore(): Promise<boolean> {
-  try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
-    console.log('✅ Conexión con Firebase Firestore establecida exitosamente.');
-    return true;
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.warn('⚠️ Conexión en modo offline de Firestore:', error.message);
-    } else {
-      console.log('ℹ️ Firestore inicializado correctamente.');
-    }
-    return false;
-  }
+// Silenciar avisos de desconexión transitoria / reconexión de Firestore en consola
+try {
+  setLogLevel('error');
+} catch {
+  // Ignorar en entornos donde no aplique
 }
 
-// Inicializar verificación en segundo plano
-if (typeof window !== 'undefined') {
-  validarConexionFirestore().catch(() => {});
+// Inicializar Firestore con la base de datos configurada en firebase-applet-config.json
+const dbId = (firebaseConfig as any).firestoreDatabaseId;
+export const db: Firestore = dbId ? getFirestore(app, dbId) : getFirestore(app);
+
+// Validar la conexión con Firestore de manera opcional y no bloqueante
+export async function validarConexionFirestore(): Promise<boolean> {
+  try {
+    const docSnap = await getDoc(doc(db, 'test', 'connection'));
+    return docSnap.exists();
+  } catch {
+    return false;
+  }
 }
 
 // Servicios de sincronización para entidades del sistema
@@ -145,8 +143,10 @@ export const firestoreSync = {
     try {
       const docRef = doc(db, coleccion, String(id));
       await setDoc(docRef, { ...datos, updatedAt: new Date().toISOString() }, { merge: true });
-    } catch (err) {
-      console.warn(`Error al sincronizar con Firestore [${coleccion}/${id}]:`, err);
+    } catch (err: any) {
+      if (err?.code !== 'unavailable' && !err?.message?.includes('offline')) {
+        console.warn(`Error al sincronizar con Firestore [${coleccion}/${id}]:`, err?.message || err);
+      }
     }
   },
 
@@ -166,8 +166,10 @@ export const firestoreSync = {
       const colRef = collection(db, coleccion);
       const snapshot = await getDocs(colRef);
       return snapshot.docs.map(d => d.data() as T);
-    } catch (err) {
-      console.warn(`Error al cargar de Firestore [${coleccion}]:`, err);
+    } catch (err: any) {
+      if (err?.code !== 'unavailable' && !err?.message?.includes('offline')) {
+        console.warn(`Sincronización Firestore [${coleccion}]:`, err?.message || err);
+      }
       return [];
     }
   },
@@ -182,8 +184,10 @@ export const firestoreSync = {
         batch.set(ref, { ...item.data, updatedAt: new Date().toISOString() }, { merge: true });
       }
       await batch.commit();
-    } catch (err) {
-      console.warn(`Error en batch de Firestore [${coleccion}]:`, err);
+    } catch (err: any) {
+      if (err?.code !== 'unavailable' && !err?.message?.includes('offline')) {
+        console.warn(`Error en batch de Firestore [${coleccion}]:`, err?.message || err);
+      }
     }
   }
 };

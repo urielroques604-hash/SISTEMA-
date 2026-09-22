@@ -8,17 +8,25 @@ import {
   CheckCircle2, 
   Image as ImageIcon, 
   Printer, 
-  FileText 
+  FileText,
+  Coins
 } from 'lucide-react';
 import { CuentaPorCobrar, Cliente } from '../types';
 import { EstadoDeCuentaModal } from './EstadoDeCuentaModal';
+import { formatoUSD, formatoNIO, aCordobas } from '../utils/currency';
+import { abrirEnlaceSeguro } from '../utils/safeLink';
 
 interface CxcProps {
   cuentasPorCobrar: CuentaPorCobrar[];
   clientes?: Cliente[];
+  tasaCambio?: number;
 }
 
-export const CxcView: React.FC<CxcProps> = ({ cuentasPorCobrar, clientes = [] }) => {
+export const CxcView: React.FC<CxcProps> = ({ 
+  cuentasPorCobrar, 
+  clientes = [],
+  tasaCambio = 36.65 
+}) => {
   const [busqueda, setBusqueda] = useState('');
   const [mensajeCopiado, setMensajeCopiado] = useState<string | null>(null);
   const [cuentaSeleccionada, setCuentaSeleccionada] = useState<CuentaPorCobrar | null>(null);
@@ -28,20 +36,26 @@ export const CxcView: React.FC<CxcProps> = ({ cuentasPorCobrar, clientes = [] })
     c.idCliente.toLowerCase().includes(busqueda.toLowerCase())
   );
 
-  const totalPorCobrar = cuentasPorCobrar.reduce((acc, c) => acc + c.saldoPendiente, 0);
+  const totalPorCobrarUSD = cuentasPorCobrar.reduce((acc, c) => acc + c.saldoPendiente, 0);
+  const totalPorCobrarNIO = aCordobas(totalPorCobrarUSD, tasaCambio);
 
   const generarTextoEstadoCuenta = (c: CuentaPorCobrar) => {
     const alDia = c.saldoPendiente <= 0.01;
     const clienteMatch = clientes.find(cl => cl.id === c.idCliente || cl.nombre === c.cliente);
+    const pendNIO = aCordobas(c.saldoPendiente, tasaCambio);
+    const totNIO = aCordobas(c.totalCreditos, tasaCambio);
+    const abonNIO = aCordobas(c.totalAbonado, tasaCambio);
 
     return `🌸 *VARIEDADES CS - ESTADO DE CUENTA* 🌸
 -----------------------------------------
 👤 *Cliente:* ${c.cliente} (ID: ${c.idCliente})
-${clienteMatch?.telefono ? `📞 *Teléfono:* ${clienteMatch.telefono}\n` : ''}-----------------------------------------
+${clienteMatch?.telefono ? `📞 *Teléfono:* ${clienteMatch.telefono}\n` : ''}💱 *Tasa de Cambio:* 1 $ USD = C$ ${tasaCambio.toFixed(2)} NIO
+-----------------------------------------
 📊 *RESUMEN DE CUENTAS POR COBRAR:*
-• Total Créditos Otorgados: $${c.totalCreditos.toFixed(2)}
-• Total Abonado Acumulado: $${c.totalAbonado.toFixed(2)}
-• *SALDO ACTUAL PENDIENTE:* $${c.saldoPendiente.toFixed(2)}
+• Total Créditos Otorgados: ${formatoUSD(c.totalCreditos)} (${formatoNIO(totNIO)})
+• Total Abonado Acumulado: ${formatoUSD(c.totalAbonado)} (${formatoNIO(abonNIO)})
+• *SALDO ACTUAL PENDIENTE:* ${formatoUSD(c.saldoPendiente)}
+💵 *EQUIVALENTE EN CÓRDOBAS:* ${formatoNIO(pendNIO)}
 • Cantidad de Créditos Activos: ${c.creditosPendientes}
 • Estado: ${alDia ? '✅ AL DÍA' : '🔴 PENDIENTE DE PAGO'}
 -----------------------------------------
@@ -59,7 +73,7 @@ Agradecemos su preferencia y pago puntual en VARIEDADES CS. ¡Estamos a su orden
         url = `https://api.whatsapp.com/send?phone=${limpio}&text=${encoded}`;
       }
     }
-    window.open(url, '_blank', 'noopener,noreferrer');
+    abrirEnlaceSeguro(url);
   };
 
   const copiarTexto = (c: CuentaPorCobrar) => {
@@ -80,22 +94,23 @@ Agradecemos su preferencia y pago puntual en VARIEDADES CS. ¡Estamos a su orden
         </div>
       )}
 
-      {/* Resumen Header */}
+      {/* Resumen Header Dual Currency */}
       <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4">
         <div>
           <h3 className="text-base font-bold text-slate-800">Cuentas por Cobrar de Clientes</h3>
-          <p className="text-xs text-slate-500">Consolidado general de deudas, abonos y saldos pendientes por cliente.</p>
+          <p className="text-xs text-slate-500">Consolidado general de deudas, abonos y saldos pendientes en Dólares y Córdobas.</p>
         </div>
 
         <div className="bg-rose-50 border border-rose-200 px-4 py-2.5 rounded-xl text-right">
           <span className="text-[11px] font-semibold text-rose-700 block">Deuda Total Consolidada</span>
-          <span className="text-lg font-extrabold text-rose-800">${totalPorCobrar.toFixed(2)}</span>
+          <span className="text-xl font-black text-rose-800 block">{formatoUSD(totalPorCobrarUSD)}</span>
+          <span className="text-xs font-bold text-rose-600 block">{formatoNIO(totalPorCobrarNIO)}</span>
         </div>
       </div>
 
       {/* Buscador */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-        <div className="relative max-w-md">
+      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between gap-3">
+        <div className="relative max-w-md w-full">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
@@ -104,6 +119,9 @@ Agradecemos su preferencia y pago puntual en VARIEDADES CS. ¡Estamos a su orden
             onChange={e => setBusqueda(e.target.value)}
             className="w-full pl-9 pr-3 py-2 rounded-lg border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500 outline-none"
           />
+        </div>
+        <div className="text-[11px] font-semibold text-slate-500 bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-200 shrink-0">
+          Tasa: 1 $ = C$ {tasaCambio.toFixed(2)}
         </div>
       </div>
 
@@ -115,10 +133,10 @@ Agradecemos su preferencia y pago puntual en VARIEDADES CS. ¡Estamos a su orden
               <tr>
                 <th className="px-4 py-3">ID Cliente</th>
                 <th className="px-4 py-3">Cliente</th>
-                <th className="px-4 py-3 text-right">Total Créditos</th>
-                <th className="px-4 py-3 text-right">Total Abonado</th>
-                <th className="px-4 py-3 text-right">Saldo Pendiente</th>
-                <th className="px-4 py-3 text-center">Créditos Pendientes</th>
+                <th className="px-4 py-3 text-right">Total Créditos ($ / C$)</th>
+                <th className="px-4 py-3 text-right">Total Abonado ($ / C$)</th>
+                <th className="px-4 py-3 text-right">Saldo Pendiente ($ / C$)</th>
+                <th className="px-4 py-3 text-center">Créditos</th>
                 <th className="px-4 py-3 text-center">Estado</th>
                 <th className="px-4 py-3 text-center">Estado de Cuenta Oficial</th>
               </tr>
@@ -126,13 +144,26 @@ Agradecemos su preferencia y pago puntual en VARIEDADES CS. ¡Estamos a su orden
             <tbody className="divide-y divide-slate-100">
               {filtradas.map(c => {
                 const alDia = c.saldoPendiente <= 0.01;
+                const totNIO = aCordobas(c.totalCreditos, tasaCambio);
+                const abonNIO = aCordobas(c.totalAbonado, tasaCambio);
+                const saldNIO = aCordobas(c.saldoPendiente, tasaCambio);
+
                 return (
                   <tr key={c.idCliente} className="hover:bg-slate-50">
                     <td className="px-4 py-3 font-mono font-bold text-slate-700">{c.idCliente}</td>
                     <td className="px-4 py-3 font-bold text-slate-900">{c.cliente}</td>
-                    <td className="px-4 py-3 text-right font-semibold text-slate-700">${c.totalCreditos.toFixed(2)}</td>
-                    <td className="px-4 py-3 text-right font-semibold text-emerald-600">${c.totalAbonado.toFixed(2)}</td>
-                    <td className="px-4 py-3 text-right font-extrabold text-rose-600">${c.saldoPendiente.toFixed(2)}</td>
+                    <td className="px-4 py-3 text-right">
+                      <span className="font-semibold text-slate-700 block">{formatoUSD(c.totalCreditos)}</span>
+                      <span className="text-[10px] text-slate-500 block">{formatoNIO(totNIO)}</span>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <span className="font-semibold text-emerald-600 block">{formatoUSD(c.totalAbonado)}</span>
+                      <span className="text-[10px] text-emerald-600 block">{formatoNIO(abonNIO)}</span>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <span className="font-black text-rose-600 block">{formatoUSD(c.saldoPendiente)}</span>
+                      <span className="text-[10px] font-bold text-rose-700 block">{formatoNIO(saldNIO)}</span>
+                    </td>
                     <td className="px-4 py-3 text-center font-bold text-slate-800">{c.creditosPendientes}</td>
                     <td className="px-4 py-3 text-center">
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
@@ -190,6 +221,7 @@ Agradecemos su preferencia y pago puntual en VARIEDADES CS. ¡Estamos a su orden
         <EstadoDeCuentaModal
           cuenta={cuentaSeleccionada}
           clienteInfo={clientes.find(cl => cl.id === cuentaSeleccionada.idCliente || cl.nombre === cuentaSeleccionada.cliente)}
+          tasaCambio={tasaCambio}
           onClose={() => setCuentaSeleccionada(null)}
         />
       )}

@@ -7,19 +7,19 @@ import {
   CheckCircle2, 
   AlertCircle, 
   CreditCard, 
-  Receipt,
-  UserCheck,
-  User,
-  Coins,
-  ShoppingBag,
-  ArrowRight,
-  ArrowLeft,
-  Package,
-  ImageOff,
-  Image as ImageIcon
+  Receipt, 
+  User, 
+  Coins, 
+  ShoppingBag, 
+  ArrowRight, 
+  ArrowLeft, 
+  Package, 
+  ImageOff, 
+  Image as ImageIcon,
+  ArrowRightLeft
 } from 'lucide-react';
 import { Producto, ItemCarrito, Cliente } from '../types';
-import { obtenerImagenSugerida } from '../utils/perfumeBrands';
+import { formatoUSD, formatoNIO, aCordobas, aDolares } from '../utils/currency';
 
 interface PosProps {
   productos: Producto[];
@@ -28,6 +28,8 @@ interface PosProps {
   setCarrito: React.Dispatch<React.SetStateAction<ItemCarrito[]>>;
   modoSinImagenes?: boolean;
   onToggleModoSinImagenes?: () => void;
+  tasaCambio?: number;
+  onAbrirModalTasa?: () => void;
   onFinalizarVenta: (datosVenta: {
     items: ItemCarrito[];
     formaPago: string;
@@ -36,6 +38,10 @@ interface PosProps {
     nombreCliente?: string;
     efectivoRecibido?: number;
     cambio?: number;
+    efectivoRecibidoCordobas?: number;
+    cambioCordobas?: number;
+    monedaPago?: 'USD' | 'NIO';
+    tasaCambio?: number;
     fechaVencimiento?: string;
   }) => { success: boolean; mensaje: string; numeroVenta?: string };
 }
@@ -47,11 +53,16 @@ export const PosView: React.FC<PosProps> = ({
   setCarrito,
   modoSinImagenes = false,
   onToggleModoSinImagenes,
+  tasaCambio = 36.65,
+  onAbrirModalTasa,
   onFinalizarVenta
 }) => {
   const [busqueda, setBusqueda] = useState('');
   const [formaPago, setFormaPago] = useState('Efectivo');
-  const [descuento, setDescuento] = useState(0);
+  const [monedaVenta, setMonedaVenta] = useState<'NIO' | 'USD'>('NIO');
+  const [monedaPagoEfectivo, setMonedaPagoEfectivo] = useState<'NIO' | 'USD'>('NIO');
+  const [descuentoMoneda, setDescuentoMoneda] = useState<'NIO' | 'USD'>('NIO');
+  const [descuentoValor, setDescuentoValor] = useState<number>(0);
   const [clienteSeleccionado, setClienteSeleccionado] = useState('');
   const [efectivoEntregado, setEfectivoEntregado] = useState<string>('');
   const [pestanaMovil, setPestanaMovil] = useState<'catalogo' | 'carrito'>('catalogo');
@@ -66,57 +77,75 @@ export const PosView: React.FC<PosProps> = ({
   const productosFiltrados = productos.filter(p => 
     p.codigo.toLowerCase().includes(busqueda.toLowerCase()) ||
     p.producto.toLowerCase().includes(busqueda.toLowerCase()) ||
-    p.categoria.toLowerCase().includes(busqueda.toLowerCase())
+    p.categoria.toLowerCase().includes(busqueda.toLowerCase()) ||
+    (p.marca && p.marca.toLowerCase().includes(busqueda.toLowerCase()))
   );
+
+  // Totales
+  const subtotalUSD = carrito.reduce((acc, item) => acc + (item.precioUnitario * item.cantidad), 0);
+  const subtotalNIO = aCordobas(subtotalUSD, tasaCambio);
+  const descuentoUSD = descuentoMoneda === 'USD' 
+    ? descuentoValor 
+    : (tasaCambio > 0 ? (descuentoValor / tasaCambio) : 0);
+  const descuentoNIO = descuentoMoneda === 'NIO'
+    ? descuentoValor
+    : (descuentoValor * tasaCambio);
+
+  const totalFinalUSD = Math.max(0, subtotalUSD - descuentoUSD);
+  const totalFinalNIO = aCordobas(totalFinalUSD, tasaCambio);
+  const totalPrendas = carrito.reduce((acc, item) => acc + item.cantidad, 0);
 
   // Agregar al carrito
   const agregarAlCarrito = (prod: Producto) => {
     setAlerta(null);
     if (prod.existencia <= 0) {
-      setAlerta({ tipo: 'error', mensaje: `El producto "${prod.producto}" está AGOTADO.` });
+      setAlerta({ tipo: 'error', mensaje: `El producto "${prod.producto}" está agotado.` });
       return;
     }
 
     const itemExistente = carrito.find(item => item.codigo === prod.codigo);
     if (itemExistente) {
-      if (itemExistente.cantidad + 1 > prod.existencia) {
+      if (itemExistente.cantidad >= prod.existencia) {
         setAlerta({ 
           tipo: 'error', 
-          mensaje: `Existencia insuficiente para "${prod.producto}". Stock disponible: ${prod.existencia}` 
+          mensaje: `No hay más existencias disponibles de "${prod.producto}" (Stock: ${prod.existencia}).` 
         });
         return;
       }
       setCarrito(carrito.map(item => 
-        item.codigo === prod.codigo
-          ? { ...item, cantidad: item.cantidad + 1 }
+        item.codigo === prod.codigo 
+          ? { ...item, cantidad: item.cantidad + 1 } 
           : item
       ));
     } else {
-      const sinFoto = modoSinImagenes || prod.sinImagen || !prod.imagen;
-      setCarrito([...carrito, {
-        codigo: prod.codigo,
-        producto: prod.producto,
-        precioUnitario: prod.precioVenta,
-        cantidad: 1,
-        categoria: prod.categoria,
-        marca: prod.marca,
-        imagen: sinFoto ? '' : prod.imagen,
-        sinImagen: sinFoto,
-        maxStock: prod.existencia
-      }]);
+      setCarrito([
+        ...carrito,
+        {
+          codigo: prod.codigo,
+          producto: prod.producto,
+          categoria: prod.categoria,
+          cantidad: 1,
+          precioUnitario: prod.precioVenta,
+          precioUnitarioCordobas: prod.precioVentaCordobas || (prod.precioVenta * tasaCambio),
+          maxStock: prod.existencia,
+          marca: prod.marca,
+          imagen: prod.imagen,
+          sinImagen: prod.sinImagen
+        }
+      ]);
     }
   };
 
   // Modificar cantidad en carrito
   const modificarCantidad = (codigo: string, nuevaCantidad: number) => {
     setAlerta(null);
-    const prod = productos.find(p => p.codigo === codigo);
-    if (!prod) return;
-
     if (nuevaCantidad <= 0) {
       eliminarDelCarrito(codigo);
       return;
     }
+
+    const prod = productos.find(p => p.codigo === codigo);
+    if (!prod) return;
 
     if (nuevaCantidad > prod.existencia) {
       setAlerta({ 
@@ -141,21 +170,36 @@ export const PosView: React.FC<PosProps> = ({
   // Vaciar carrito
   const vaciarCarrito = () => {
     setCarrito([]);
-    setDescuento(0);
+    setDescuentoValor(0);
     setClienteSeleccionado('');
     setEfectivoEntregado('');
   };
 
-  // Totales
-  const subtotal = carrito.reduce((acc, item) => acc + (item.precioUnitario * item.cantidad), 0);
-  const totalFinal = Math.max(0, subtotal - descuento);
-  const totalPrendas = carrito.reduce((acc, item) => acc + item.cantidad, 0);
-
-  // Cambio
+  // Cálculos de cambio / vuelto según la moneda en que paga el cliente
   const montoEntregadoNum = Number(efectivoEntregado) || 0;
-  const cambio = formaPago === 'Efectivo' && montoEntregadoNum >= totalFinal 
-    ? montoEntregadoNum - totalFinal 
-    : 0;
+  
+  let cambioUSD = 0;
+  let cambioNIO = 0;
+  let efectivoRecibidoUSD = 0;
+  let efectivoRecibidoNIO = 0;
+
+  if (formaPago === 'Efectivo') {
+    if (monedaPagoEfectivo === 'NIO') {
+      efectivoRecibidoNIO = montoEntregadoNum;
+      efectivoRecibidoUSD = aDolares(montoEntregadoNum, tasaCambio);
+      if (montoEntregadoNum >= totalFinalNIO) {
+        cambioNIO = montoEntregadoNum - totalFinalNIO;
+        cambioUSD = aDolares(cambioNIO, tasaCambio);
+      }
+    } else {
+      efectivoRecibidoUSD = montoEntregadoNum;
+      efectivoRecibidoNIO = aCordobas(montoEntregadoNum, tasaCambio);
+      if (montoEntregadoNum >= totalFinalUSD) {
+        cambioUSD = montoEntregadoNum - totalFinalUSD;
+        cambioNIO = aCordobas(cambioUSD, tasaCambio);
+      }
+    }
+  }
 
   // Procesar Cobro
   const procesarCobro = () => {
@@ -176,124 +220,124 @@ export const PosView: React.FC<PosProps> = ({
     }
 
     // Validar efectivo
-    if (formaPago === 'Efectivo' && efectivoEntregado !== '' && montoEntregadoNum < totalFinal) {
-      setAlerta({ 
-        tipo: 'error', 
-        mensaje: `El efectivo recibido ($${montoEntregadoNum.toFixed(2)}) es menor al total ($${totalFinal.toFixed(2)}).` 
-      });
-      return;
+    if (formaPago === 'Efectivo' && efectivoEntregado !== '') {
+      if (monedaPagoEfectivo === 'NIO' && montoEntregadoNum < totalFinalNIO) {
+        setAlerta({ 
+          tipo: 'error', 
+          mensaje: `El monto entregado en Córdobas (C$ ${montoEntregadoNum.toFixed(2)}) es menor que el total (C$ ${totalFinalNIO.toFixed(2)}).` 
+        });
+        return;
+      } else if (monedaPagoEfectivo === 'USD' && montoEntregadoNum < totalFinalUSD) {
+        setAlerta({ 
+          tipo: 'error', 
+          mensaje: `El monto entregado en Dólares ($${montoEntregadoNum.toFixed(2)}) es menor que el total ($${totalFinalUSD.toFixed(2)}).` 
+        });
+        return;
+      }
     }
 
     const clienteObj = clientes.find(c => c.id === clienteSeleccionado);
 
-    const resultado = onFinalizarVenta({
+    const res = onFinalizarVenta({
       items: carrito,
       formaPago,
-      descuento,
+      descuento: descuentoUSD,
       idCliente: clienteSeleccionado || undefined,
-      nombreCliente: clienteObj ? clienteObj.nombre : (clienteSeleccionado ? clienteSeleccionado : 'Consumidor Final'),
-      efectivoRecibido: formaPago === 'Efectivo' && montoEntregadoNum > 0 ? montoEntregadoNum : totalFinal,
-      cambio: formaPago === 'Efectivo' ? cambio : 0,
+      nombreCliente: clienteObj ? clienteObj.nombre : (clienteSeleccionado ? undefined : 'Consumidor Final'),
+      efectivoRecibido: efectivoRecibidoUSD > 0 ? efectivoRecibidoUSD : totalFinalUSD,
+      cambio: cambioUSD,
+      efectivoRecibidoCordobas: efectivoRecibidoNIO > 0 ? efectivoRecibidoNIO : totalFinalNIO,
+      cambioCordobas: cambioNIO,
+      monedaPago: formaPago === 'Efectivo' ? monedaPagoEfectivo : monedaVenta,
+      tasaCambio,
       fechaVencimiento: formaPago === 'Crédito' ? fechaVencimiento : undefined
     });
 
-    if (resultado.success) {
-      setAlerta({ tipo: 'success', mensaje: resultado.mensaje });
+    if (res.success) {
+      setAlerta({ tipo: 'success', mensaje: res.mensaje });
       vaciarCarrito();
       setPestanaMovil('catalogo');
     } else {
-      setAlerta({ tipo: 'error', mensaje: resultado.mensaje });
+      setAlerta({ tipo: 'error', mensaje: res.mensaje });
     }
   };
 
   return (
-    <div className="space-y-4 pb-20 md:pb-6">
-      
-      {/* Selector de Pestañas Móvil: Catálogo vs Carrito */}
-      <div className="lg:hidden flex bg-white p-1.5 rounded-2xl border border-slate-200 shadow-xs">
-        <button
-          onClick={() => setPestanaMovil('catalogo')}
-          className={`flex-1 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition ${
-            pestanaMovil === 'catalogo'
-              ? 'bg-blue-600 text-white shadow-xs'
-              : 'text-slate-600 hover:text-slate-900'
-          }`}
-        >
-          <ShoppingBag className="w-4 h-4" />
-          <span>Catálogo ({productosFiltrados.length})</span>
-        </button>
+    <div className="flex flex-col gap-3">
+      {/* Barra de Tasa y Navegación Móvil */}
+      <div className="flex flex-wrap items-center justify-between gap-2 bg-gradient-to-r from-slate-900 to-slate-800 p-2.5 sm:p-3 rounded-2xl text-white shadow-sm">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+            <Coins className="w-4 h-4" />
+          </div>
+          <div>
+            <span className="text-xs font-black block leading-tight">Precios en Dólar ($) y Córdoba (C$)</span>
+            <span className="text-[10px] text-slate-300">Tasa Oficial: 1 $ USD = C$ {tasaCambio.toFixed(2)} NIO</span>
+          </div>
+        </div>
 
-        <button
-          onClick={() => setPestanaMovil('carrito')}
-          className={`flex-1 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition relative ${
-            pestanaMovil === 'carrito'
-              ? 'bg-blue-600 text-white shadow-xs'
-              : 'text-slate-600 hover:text-slate-900'
-          }`}
-        >
-          <Receipt className="w-4 h-4" />
-          <span>Carrito</span>
-          {carrito.length > 0 && (
-            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${
-              pestanaMovil === 'carrito' ? 'bg-white text-blue-700' : 'bg-amber-500 text-slate-950'
-            }`}>
-              {totalPrendas} • ${totalFinal.toFixed(2)}
-            </span>
+        <div className="flex items-center gap-2">
+          {onAbrirModalTasa && (
+            <button
+              onClick={onAbrirModalTasa}
+              className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-emerald-300 text-xs font-bold transition flex items-center gap-1 border border-white/15"
+              title="Cambiar Tasa de Cambio"
+            >
+              <ArrowRightLeft className="w-3 h-3" />
+              <span>Cambiar Tasa</span>
+            </button>
           )}
-        </button>
+
+          {/* Selector de pestañas para móviles */}
+          <div className="flex lg:hidden bg-slate-800 p-0.5 rounded-xl border border-slate-700">
+            <button
+              onClick={() => setPestanaMovil('catalogo')}
+              className={`px-3 py-1 text-xs font-bold rounded-lg transition ${
+                pestanaMovil === 'catalogo' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-300 hover:text-white'
+              }`}
+            >
+              Catálogo ({productosFiltrados.length})
+            </button>
+            <button
+              onClick={() => setPestanaMovil('carrito')}
+              className={`px-3 py-1 text-xs font-bold rounded-lg transition relative ${
+                pestanaMovil === 'carrito' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-300 hover:text-white'
+              }`}
+            >
+              Carrito ({totalPrendas})
+              {totalPrendas > 0 && (
+                <span className="ml-1 px-1.5 py-0.2 bg-emerald-400 text-slate-900 rounded-full text-[10px] font-black">
+                  {formatoUSD(totalFinalUSD)}
+                </span>
+              )}
+            </button>
+          </div>
+        </div>
       </div>
 
-      {/* Grid Principal Adaptado: En desktop es 2 columnas lado a lado; en móvil se muestra según pestaña activa */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-        
-        {/* ======================================================== */}
-        {/* 1. CATÁLOGO DE PRODUCTOS (Visible en desktop o si pestaña es catalogo) */}
-        {/* ======================================================== */}
-        <div className={`space-y-4 ${
-          pestanaMovil === 'catalogo' ? 'block' : 'hidden lg:block'
-        } lg:col-span-7`}>
-          
-          <div className="bg-white p-3 sm:p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 items-start">
+        {/* COLUMNA CATÁLOGO DE PRODUCTOS (7 cols) */}
+        <div className={`lg:col-span-7 space-y-3 sm:space-y-4 ${pestanaMovil === 'carrito' ? 'hidden lg:block' : 'block'}`}>
+          {/* Barra de búsqueda */}
+          <div className="bg-white p-3 sm:p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-2 sm:gap-3">
             <div className="relative flex-1">
-              <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
-                id="pos-search-input"
-                placeholder="Buscar perfume, crema, bolso, toallas, calzado, ropa, cartera o código..."
+                placeholder="Buscar por nombre, código, marca, categoría..."
                 value={busqueda}
                 onChange={e => setBusqueda(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50/50"
+                className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white"
               />
             </div>
-            {onToggleModoSinImagenes && (
-              <button
-                type="button"
-                onClick={onToggleModoSinImagenes}
-                title={modoSinImagenes ? "Modo sin fotos activo (Clic para ver fotos)" : "Fotos activas (Clic para ocultar/quitar fotos)"}
-                className={`px-3 py-2.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition shrink-0 cursor-pointer ${
-                  modoSinImagenes 
-                    ? 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100' 
-                    : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-                }`}
-              >
-                {modoSinImagenes ? (
-                  <>
-                    <ImageOff className="w-4 h-4 text-amber-600" />
-                    <span className="hidden sm:inline">Sin Fotos</span>
-                  </>
-                ) : (
-                  <>
-                    <ImageIcon className="w-4 h-4 text-slate-500" />
-                    <span className="hidden sm:inline">Con Fotos</span>
-                  </>
-                )}
-              </button>
-            )}
+            <span className="text-xs text-slate-500 font-bold whitespace-nowrap hidden sm:inline">
+              {productosFiltrados.length} artículos
+            </span>
           </div>
 
-          {/* Mensaje de alerta */}
+          {/* Mensajes de alerta */}
           {alerta && (
-            <div className={`p-3 rounded-xl text-xs font-semibold flex items-center gap-2.5 ${
+            <div className={`p-3 rounded-xl text-xs font-bold flex items-center gap-2 animate-fade-in ${
               alerta.tipo === 'error' ? 'bg-rose-50 text-rose-700 border border-rose-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
             }`}>
               {alerta.tipo === 'error' ? <AlertCircle className="w-4 h-4 shrink-0" /> : <CheckCircle2 className="w-4 h-4 shrink-0" />}
@@ -301,12 +345,13 @@ export const PosView: React.FC<PosProps> = ({
             </div>
           )}
 
-          {/* Cuadrícula de Tarjetas de Productos (Adaptada a teléfono y PC) */}
+          {/* Cuadrícula de Tarjetas de Productos */}
           <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-2.5 sm:gap-3">
             {productosFiltrados.map(prod => {
               const esAgotado = prod.existencia <= 0;
               const enCarrito = carrito.find(c => c.codigo === prod.codigo);
               const sinFoto = modoSinImagenes || prod.sinImagen || !prod.imagen;
+              const pVentaNIO = prod.precioVentaCordobas || (prod.precioVenta * tasaCambio);
 
               return (
                 <div
@@ -320,14 +365,14 @@ export const PosView: React.FC<PosProps> = ({
                   }`}
                   onClick={() => !esAgotado && agregarAlCarrito(prod)}
                 >
-                  {/* Badge de cantidad en carrito si ya fue agregado */}
+                  {/* Badge de cantidad en carrito */}
                   {enCarrito && (
                     <div className="absolute top-2 right-2 z-10 w-5 h-5 rounded-full bg-blue-600 text-white font-black text-[10px] flex items-center justify-center shadow-xs">
                       {enCarrito.cantidad}
                     </div>
                   )}
 
-                  {/* Imagen del perfume / producto o encabezado en modo sin foto */}
+                  {/* Foto o encabezado */}
                   {sinFoto ? (
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-mono truncate">
@@ -374,10 +419,14 @@ export const PosView: React.FC<PosProps> = ({
                     <p className="text-[10px] text-slate-400 mt-0.5 truncate">{prod.categoria}</p>
                   </div>
 
+                  {/* PRECIOS EN DÓLAR Y CÓRDOBA */}
                   <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between">
                     <div>
-                      <span className="text-xs sm:text-sm font-black text-blue-600">
-                        ${prod.precioVenta.toFixed(2)}
+                      <span className="text-xs sm:text-sm font-black text-blue-600 block leading-tight">
+                        {formatoUSD(prod.precioVenta)}
+                      </span>
+                      <span className="text-[10px] font-black text-emerald-700 block">
+                        {formatoNIO(pVentaNIO)}
                       </span>
                       <span className="block text-[9px] text-slate-400">
                         Stock: {prod.existencia}
@@ -402,41 +451,29 @@ export const PosView: React.FC<PosProps> = ({
           </div>
 
           {productosFiltrados.length === 0 && (
-            <div className="bg-white p-8 rounded-2xl border border-slate-200 text-center text-slate-400 text-xs">
-              No se encontraron productos con el filtro "{busqueda}".
+            <div className="p-8 text-center bg-white rounded-2xl border border-slate-200 text-slate-400 text-xs">
+              No se encontraron productos coincidentes con "{busqueda}".
             </div>
           )}
         </div>
 
-        {/* ======================================================== */}
-        {/* 2. CARRITO Y COBRO (Visible en desktop o si pestaña es carrito) */}
-        {/* ======================================================== */}
-        <div className={`space-y-4 ${
-          pestanaMovil === 'carrito' ? 'block' : 'hidden lg:block'
-        } lg:col-span-5`}>
-          
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-4 sm:p-5 space-y-4">
-            
-            {/* Encabezado del Carrito */}
+        {/* COLUMNA CARRITO Y COBRO (5 cols) */}
+        <div className={`lg:col-span-5 ${pestanaMovil === 'catalogo' ? 'hidden lg:block' : 'block'}`}>
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-4 sm:p-5 space-y-4 sticky top-4">
+            {/* Encabezado del carrito */}
             <div className="flex items-center justify-between pb-3 border-b border-slate-200">
               <div className="flex items-center gap-2">
-                {/* Botón volver a catálogo en teléfono */}
-                <button
-                  onClick={() => setPestanaMovil('catalogo')}
-                  className="lg:hidden p-1.5 -ml-1 text-slate-500 hover:text-slate-900 rounded-lg"
-                  title="Volver a ver productos"
-                >
-                  <ArrowLeft className="w-4 h-4" />
-                </button>
-                <Receipt className="w-4 h-4 text-blue-600" />
-                <h3 className="font-extrabold text-sm text-slate-900">
-                  Carrito ({totalPrendas} productos)
-                </h3>
+                <ShoppingBag className="w-4 h-4 text-blue-600" />
+                <h3 className="font-extrabold text-sm text-slate-800">Canasta de Venta</h3>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                  {totalPrendas} items
+                </span>
               </div>
               {carrito.length > 0 && (
                 <button
+                  type="button"
                   onClick={vaciarCarrito}
-                  className="text-xs text-rose-600 hover:text-rose-700 font-bold px-2 py-1 rounded-lg hover:bg-rose-50"
+                  className="text-xs text-rose-500 hover:text-rose-700 font-bold flex items-center gap-1 hover:underline"
                 >
                   Vaciar
                 </button>
@@ -457,94 +494,180 @@ export const PosView: React.FC<PosProps> = ({
                   </button>
                 </div>
               ) : (
-                carrito.map(it => (
-                  <div key={it.codigo} className="p-2.5 rounded-xl border border-slate-100 bg-slate-50/70 flex items-center justify-between gap-2.5">
-                    {/* Miniatura del producto en carrito */}
-                    <div className="w-10 h-10 rounded-lg overflow-hidden bg-slate-100 border border-slate-200 shrink-0 flex items-center justify-center">
-                      {!modoSinImagenes && !it.sinImagen && it.imagen ? (
-                        <img 
-                          src={it.imagen} 
-                          alt={it.producto}
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            (e.target as HTMLElement).style.display = 'none';
-                          }}
-                        />
-                      ) : (
-                        <Package className="w-4 h-4 text-slate-400" />
-                      )}
-                    </div>
+                carrito.map(it => {
+                  const unitNIO = it.precioUnitarioCordobas || (it.precioUnitario * tasaCambio);
+                  const totLineUSD = it.cantidad * it.precioUnitario;
+                  const totLineNIO = it.cantidad * unitNIO;
 
-                    <div className="min-w-0 flex-1">
-                      <h5 className="font-extrabold text-xs text-slate-900 truncate">{it.producto}</h5>
-                      <p className="text-[10px] text-slate-500 font-mono">
-                        {it.codigo} · ${it.precioUnitario.toFixed(2)} c/u
-                      </p>
-                    </div>
+                  return (
+                    <div key={it.codigo} className="p-2.5 rounded-xl border border-slate-100 bg-slate-50/70 flex items-center justify-between gap-2.5">
+                      <div className="min-w-0 flex-1">
+                        <h5 className="font-extrabold text-xs text-slate-900 truncate">{it.producto}</h5>
+                        <div className="flex items-center gap-2 text-[10px] text-slate-500">
+                          <span className="font-mono">{it.codigo}</span>
+                          <span>·</span>
+                          <span className="font-bold text-slate-700">{formatoUSD(it.precioUnitario)}</span>
+                          <span>/</span>
+                          <span className="text-emerald-700 font-bold">{formatoNIO(unitNIO)}</span>
+                        </div>
+                      </div>
 
-                    {/* Controles táctiles de cantidad para dedos */}
-                    <div className="flex items-center gap-1 bg-white p-0.5 rounded-lg border border-slate-200">
+                      {/* Controles táctiles de cantidad */}
+                      <div className="flex items-center gap-1 bg-white p-0.5 rounded-lg border border-slate-200">
+                        <button
+                          onClick={() => modificarCantidad(it.codigo, it.cantidad - 1)}
+                          className="w-7 h-7 rounded-md text-slate-700 flex items-center justify-center hover:bg-slate-100 active:bg-slate-200"
+                        >
+                          <Minus className="w-3.5 h-3.5" />
+                        </button>
+                        <span className="w-6 text-center font-black text-xs text-slate-900">
+                          {it.cantidad}
+                        </span>
+                        <button
+                          onClick={() => modificarCantidad(it.codigo, it.cantidad + 1)}
+                          className="w-7 h-7 rounded-md text-slate-700 flex items-center justify-center hover:bg-slate-100 active:bg-slate-200"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      <div className="text-right min-w-[70px]">
+                        <span className="font-black text-xs text-slate-900 block">
+                          {formatoUSD(totLineUSD)}
+                        </span>
+                        <span className="text-[10px] font-bold text-emerald-700 block">
+                          {formatoNIO(totLineNIO)}
+                        </span>
+                      </div>
+
                       <button
-                        onClick={() => modificarCantidad(it.codigo, it.cantidad - 1)}
-                        className="w-7 h-7 rounded-md text-slate-700 flex items-center justify-center hover:bg-slate-100 active:bg-slate-200"
+                        onClick={() => eliminarDelCarrito(it.codigo)}
+                        className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50"
                       >
-                        <Minus className="w-3.5 h-3.5" />
-                      </button>
-                      <span className="w-6 text-center font-black text-xs text-slate-900">
-                        {it.cantidad}
-                      </span>
-                      <button
-                        onClick={() => modificarCantidad(it.codigo, it.cantidad + 1)}
-                        className="w-7 h-7 rounded-md text-slate-700 flex items-center justify-center hover:bg-slate-100 active:bg-slate-200"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
-
-                    <div className="text-right min-w-[55px]">
-                      <span className="font-black text-xs text-slate-900">
-                        ${(it.cantidad * it.precioUnitario).toFixed(2)}
-                      </span>
-                    </div>
-
-                    <button
-                      onClick={() => eliminarDelCarrito(it.codigo)}
-                      className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
 
-            {/* Resumen numérico */}
-            <div className="pt-3 border-t border-slate-200 space-y-2 text-xs">
+            {/* SELECTOR DE MONEDA DE LA VENTA */}
+            <div className="pt-2">
+              <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wide mb-1">
+                Moneda de Cobro / Registro:
+              </label>
+              <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-100 rounded-xl border border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMonedaVenta('NIO');
+                    setMonedaPagoEfectivo('NIO');
+                    if (efectivoEntregado) {
+                      setEfectivoEntregado(totalFinalNIO.toFixed(2));
+                    }
+                  }}
+                  className={`py-1.5 px-2 rounded-lg font-black text-xs flex items-center justify-center gap-1 transition ${
+                    monedaVenta === 'NIO'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900 bg-white/60'
+                  }`}
+                >
+                  <span>C$ Córdobas (NIO)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMonedaVenta('USD');
+                    setMonedaPagoEfectivo('USD');
+                    if (efectivoEntregado) {
+                      setEfectivoEntregado(totalFinalUSD.toFixed(2));
+                    }
+                  }}
+                  className={`py-1.5 px-2 rounded-lg font-black text-xs flex items-center justify-center gap-1 transition ${
+                    monedaVenta === 'USD'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900 bg-white/60'
+                  }`}
+                >
+                  <span>$ Dólares (USD)</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Resumen numérico Dual Currency */}
+            <div className="pt-2 border-t border-slate-200 space-y-2 text-xs">
               <div className="flex justify-between text-slate-600">
                 <span>Subtotal ({totalPrendas} productos)</span>
-                <span className="font-bold text-slate-800">${subtotal.toFixed(2)}</span>
+                <div className="text-right">
+                  <span className="font-bold text-slate-800">
+                    {monedaVenta === 'NIO' ? formatoNIO(subtotalNIO) : formatoUSD(subtotalUSD)}
+                  </span>
+                  <span className="text-slate-400 ml-1 text-[11px]">
+                    / {monedaVenta === 'NIO' ? formatoUSD(subtotalUSD) : formatoNIO(subtotalNIO)}
+                  </span>
+                </div>
               </div>
 
-              <div className="flex items-center justify-between">
-                <span className="text-slate-600 font-medium">Descuento ($)</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.50"
-                  value={descuento}
-                  onChange={e => setDescuento(Math.max(0, Number(e.target.value) || 0))}
-                  className="w-24 text-right px-2.5 py-1 rounded-lg border border-slate-200 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                />
+              {/* Descuento con selector de moneda */}
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-slate-600 font-medium">Descuento</span>
+                <div className="flex items-center gap-1.5">
+                  <div className="flex bg-slate-200 rounded-lg p-0.5 border border-slate-300">
+                    <button
+                      type="button"
+                      onClick={() => setDescuentoMoneda('NIO')}
+                      className={`px-1.5 py-0.5 rounded text-[10px] font-black transition ${
+                        descuentoMoneda === 'NIO' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-600'
+                      }`}
+                    >
+                      C$
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDescuentoMoneda('USD')}
+                      className={`px-1.5 py-0.5 rounded text-[10px] font-black transition ${
+                        descuentoMoneda === 'USD' ? 'bg-blue-600 text-white shadow-2xs' : 'text-slate-600'
+                      }`}
+                    >
+                      $
+                    </button>
+                  </div>
+                  <input
+                    type="number"
+                    min="0"
+                    step={descuentoMoneda === 'NIO' ? '5' : '0.50'}
+                    value={descuentoValor || ''}
+                    onChange={e => setDescuentoValor(Math.max(0, Number(e.target.value) || 0))}
+                    placeholder="0"
+                    className="w-20 text-right px-2 py-1 rounded-lg border border-slate-200 text-xs font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  />
+                </div>
               </div>
 
-              <div className="flex justify-between items-center pt-2 border-t border-slate-200 text-sm">
-                <span className="font-black text-slate-900">TOTAL A PAGAR</span>
-                <span className="font-black text-blue-600 text-xl">${totalFinal.toFixed(2)}</span>
+              {/* TOTAL A PAGAR PROMINENTE EN AMBAS MONEDAS */}
+              <div className="p-3 bg-slate-900 text-white rounded-xl shadow-xs space-y-1">
+                <div className="flex justify-between items-baseline">
+                  <span className="text-xs font-extrabold uppercase text-slate-300">TOTAL A PAGAR:</span>
+                  <div className="text-right">
+                    {monedaVenta === 'NIO' ? (
+                      <>
+                        <span className="font-black text-xl text-emerald-400 block">{formatoNIO(totalFinalNIO)}</span>
+                        <span className="text-xs font-bold text-slate-300">= {formatoUSD(totalFinalUSD)}</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="font-black text-xl text-emerald-400 block">{formatoUSD(totalFinalUSD)}</span>
+                        <span className="text-sm font-extrabold text-amber-300">= {formatoNIO(totalFinalNIO)}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
 
             {/* Cliente y Forma de pago */}
-            <div className="pt-2 space-y-3">
+            <div className="pt-1 space-y-3">
               {/* Selector de Cliente */}
               <div>
                 <div className="flex items-center justify-between mb-1">
@@ -587,7 +710,7 @@ export const PosView: React.FC<PosProps> = ({
                       key={fp}
                       type="button"
                       onClick={() => setFormaPago(fp)}
-                      className={`py-2.5 px-3 rounded-xl border font-bold transition text-center ${
+                      className={`py-2 px-3 rounded-xl border font-bold transition text-center ${
                         formaPago === fp
                           ? 'bg-blue-600 border-blue-600 text-white shadow-xs'
                           : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
@@ -599,64 +722,155 @@ export const PosView: React.FC<PosProps> = ({
                 </div>
               </div>
 
-              {/* Opciones cuando es Efectivo (Monto entregado y cambio con botones rápidos) */}
+              {/* Opciones cuando es Efectivo con Conmutador Córdobas / Dólares */}
               {formaPago === 'Efectivo' && (
-                <div className="p-3 bg-emerald-50/80 border border-emerald-200 rounded-xl space-y-2.5 text-xs">
-                  <div className="flex items-center justify-between text-emerald-900 font-bold">
+                <div className="p-3.5 bg-emerald-50/90 border border-emerald-300 rounded-xl space-y-3 text-xs">
+                  <div className="flex items-center justify-between text-emerald-950 font-bold">
                     <span className="flex items-center gap-1.5">
-                      <Coins className="w-3.5 h-3.5 text-emerald-700" />
-                      <span>Cálculo de Cambio / Vuelto</span>
+                      <Coins className="w-4 h-4 text-emerald-700" />
+                      <span>Cobro en Efectivo</span>
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => setEfectivoEntregado(totalFinal.toString())}
-                      className="text-[10px] font-black px-2 py-0.5 bg-emerald-200/80 text-emerald-900 rounded-md hover:bg-emerald-300"
-                    >
-                      Pago Exacto
-                    </button>
+
+                    {/* Selector de Moneda de Cobro */}
+                    <div className="flex bg-white rounded-lg p-0.5 border border-emerald-300">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMonedaPagoEfectivo('NIO');
+                          setEfectivoEntregado(totalFinalNIO.toFixed(2));
+                        }}
+                        className={`px-2 py-0.5 rounded text-[11px] font-black transition ${
+                          monedaPagoEfectivo === 'NIO' 
+                            ? 'bg-emerald-600 text-white shadow-2xs' 
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        Córdobas (C$)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMonedaPagoEfectivo('USD');
+                          setEfectivoEntregado(totalFinalUSD.toFixed(2));
+                        }}
+                        className={`px-2 py-0.5 rounded text-[11px] font-black transition ${
+                          monedaPagoEfectivo === 'USD' 
+                            ? 'bg-emerald-600 text-white shadow-2xs' 
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        Dólares ($)
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Detalle del Monto a Pagar en la moneda seleccionada */}
+                  <div className="flex items-center justify-between bg-white/80 p-2 rounded-lg border border-emerald-200">
+                    <span className="text-[11px] font-bold text-slate-700">Monto Requerido:</span>
+                    <span className="text-sm font-black text-emerald-800">
+                      {monedaPagoEfectivo === 'NIO' ? formatoNIO(totalFinalNIO) : formatoUSD(totalFinalUSD)}
+                    </span>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2 items-center">
                     <div>
                       <label className="block text-[10px] font-semibold text-slate-600 mb-1">
-                        Efectivo Recibido ($)
+                        Recibido ({monedaPagoEfectivo === 'NIO' ? 'C$ Córdobas' : '$ USD'})
                       </label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.50"
-                        placeholder={`$${totalFinal.toFixed(2)}`}
-                        value={efectivoEntregado}
-                        onChange={e => setEfectivoEntregado(e.target.value)}
-                        className="w-full p-2 bg-white border border-emerald-300 rounded-lg text-xs font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                      />
+                      <div className="relative">
+                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-xs">
+                          {monedaPagoEfectivo === 'NIO' ? 'C$' : '$'}
+                        </span>
+                        <input
+                          type="number"
+                          min="0"
+                          step={monedaPagoEfectivo === 'NIO' ? '10' : '1'}
+                          placeholder={monedaPagoEfectivo === 'NIO' ? totalFinalNIO.toFixed(2) : totalFinalUSD.toFixed(2)}
+                          value={efectivoEntregado}
+                          onChange={e => setEfectivoEntregado(e.target.value)}
+                          className="w-full pl-8 pr-2 py-2 bg-white border border-emerald-300 rounded-lg text-xs font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        />
+                      </div>
                     </div>
                     <div>
                       <label className="block text-[10px] font-semibold text-slate-600 mb-1">
-                        Cambio a Entregar
+                        Cambio / Vuelto
                       </label>
                       <div className={`p-2 rounded-lg text-xs font-black border text-center ${
-                        montoEntregadoNum >= totalFinal
-                          ? 'bg-emerald-100 text-emerald-900 border-emerald-300 text-sm'
+                        (monedaPagoEfectivo === 'NIO' ? montoEntregadoNum >= totalFinalNIO : montoEntregadoNum >= totalFinalUSD)
+                          ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
                           : 'bg-white text-slate-400 border-slate-200'
                       }`}>
-                        ${cambio.toFixed(2)}
+                        <span className="block text-sm">
+                          {monedaPagoEfectivo === 'NIO' ? formatoNIO(cambioNIO) : formatoUSD(cambioUSD)}
+                        </span>
+                        <span className="block text-[9px] text-slate-500 font-semibold">
+                          = {monedaPagoEfectivo === 'NIO' ? formatoUSD(cambioUSD) : formatoNIO(cambioNIO)}
+                        </span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Botones de denominaciones rápidas en efectivo */}
-                  <div className="flex items-center gap-1.5 pt-1 overflow-x-auto">
-                    {[5, 10, 20, 50, 100].map(den => (
+                  {/* Botones de denominaciones rápidas */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] font-bold text-slate-500">Billetes Rápidos:</span>
                       <button
-                        key={den}
                         type="button"
-                        onClick={() => setEfectivoEntregado(den.toString())}
-                        className="px-2 py-1 rounded bg-white border border-emerald-300 text-emerald-800 font-bold text-[10px] hover:bg-emerald-100 shrink-0"
+                        onClick={() => setEfectivoEntregado(monedaPagoEfectivo === 'NIO' ? totalFinalNIO.toString() : totalFinalUSD.toString())}
+                        className="text-[10px] font-black text-emerald-800 underline"
                       >
-                        ${den}
+                        Pago Exacto
                       </button>
-                    ))}
+                    </div>
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
+                      {monedaPagoEfectivo === 'NIO' ? (
+                        [50, 100, 200, 500, 1000, 2000].map(den => (
+                          <button
+                            key={den}
+                            type="button"
+                            onClick={() => setEfectivoEntregado(den.toString())}
+                            className="px-2 py-1 rounded-md bg-white border border-emerald-300 text-emerald-900 font-black text-[10px] hover:bg-emerald-100 shrink-0 shadow-2xs"
+                          >
+                            C$ {den}
+                          </button>
+                        ))
+                      ) : (
+                        [5, 10, 20, 50, 100].map(den => (
+                          <button
+                            key={den}
+                            type="button"
+                            onClick={() => setEfectivoEntregado(den.toString())}
+                            className="px-2.5 py-1 rounded-md bg-white border border-emerald-300 text-emerald-900 font-black text-[10px] hover:bg-emerald-100 shrink-0 shadow-2xs"
+                          >
+                            ${den}
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Opciones cuando es Tarjeta o Transferencia */}
+              {(formaPago === 'Tarjeta' || formaPago === 'Transferencia') && (
+                <div className="p-3.5 bg-blue-50/80 border border-blue-200 rounded-xl space-y-2 text-xs">
+                  <div className="flex items-center justify-between text-blue-950 font-bold">
+                    <span>Cobro por {formaPago}</span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-200 text-blue-900">
+                      {monedaVenta === 'NIO' ? 'En Córdobas (C$)' : 'En Dólares ($)'}
+                    </span>
+                  </div>
+                  <div className="p-2.5 bg-white border border-blue-100 rounded-lg flex items-center justify-between">
+                    <span className="text-slate-600 font-semibold text-[11px]">Monto a cobrar al cliente:</span>
+                    <div className="text-right">
+                      <span className="text-base font-black text-blue-700 block">
+                        {monedaVenta === 'NIO' ? formatoNIO(totalFinalNIO) : formatoUSD(totalFinalUSD)}
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-bold block">
+                        = {monedaVenta === 'NIO' ? formatoUSD(totalFinalUSD) : formatoNIO(totalFinalNIO)}
+                      </span>
+                    </div>
                   </div>
                 </div>
               )}
@@ -674,7 +888,6 @@ export const PosView: React.FC<PosProps> = ({
                     </span>
                   </div>
 
-                  {/* MONTO A DEBER PROMINENTE */}
                   <div className="p-3 bg-white border border-rose-200 rounded-xl flex items-center justify-between shadow-2xs">
                     <div>
                       <span className="block text-[10px] font-extrabold uppercase tracking-wide text-slate-500">
@@ -684,8 +897,13 @@ export const PosView: React.FC<PosProps> = ({
                         CRÉDITO: MONTO A DEBER
                       </span>
                     </div>
-                    <div className="text-xl font-black text-rose-600 font-mono">
-                      ${totalFinal.toFixed(2)}
+                    <div className="text-right">
+                      <span className="text-lg font-black text-rose-600 font-mono block">
+                        {formatoUSD(totalFinalUSD)}
+                      </span>
+                      <span className="text-xs font-bold text-slate-600 block">
+                        {formatoNIO(totalFinalNIO)}
+                      </span>
                     </div>
                   </div>
 
@@ -718,56 +936,16 @@ export const PosView: React.FC<PosProps> = ({
                 className={`w-full py-3.5 rounded-xl font-black text-xs uppercase tracking-wider transition flex items-center justify-center gap-2 shadow-sm ${
                   carrito.length === 0
                     ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                    : formaPago === 'Crédito'
-                      ? 'bg-rose-600 text-white hover:bg-rose-700 active:scale-[0.99] shadow-rose-600/20'
-                      : 'bg-emerald-600 text-white hover:bg-emerald-700 active:scale-[0.99]'
+                    : 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer active:scale-[0.99]'
                 }`}
               >
-                <CheckCircle2 className="w-4 h-4" />
-                <span>
-                  {formaPago === 'Crédito'
-                    ? `Confirmar Crédito (Monto a Deber: $${totalFinal.toFixed(2)})`
-                    : `Confirmar y Cobrar ($${totalFinal.toFixed(2)})`}
-                </span>
+                <Receipt className="w-4 h-4" />
+                <span>Cobrar {formatoUSD(totalFinalUSD)} / {formatoNIO(totalFinalNIO)}</span>
               </button>
             </div>
-
           </div>
         </div>
-
       </div>
-
-      {/* ======================================================== */}
-      {/* 3. BARRA FLOTANTE DE ACCESO RÁPIDO AL CARRITO EN TELÉFONO */}
-      {/* ======================================================== */}
-      {pestanaMovil === 'catalogo' && carrito.length > 0 && (
-        <div className="lg:hidden fixed bottom-18 left-3 right-3 z-30 animate-in fade-in slide-in-from-bottom-3 duration-200">
-          <button
-            onClick={() => setPestanaMovil('carrito')}
-            className="w-full py-3 px-4 bg-slate-900 text-white rounded-2xl shadow-xl flex items-center justify-between border border-slate-700/80 hover:bg-slate-800"
-          >
-            <div className="flex items-center gap-2.5">
-              <div className="w-7 h-7 rounded-lg bg-pink-500 text-white font-black text-xs flex items-center justify-center">
-                {totalPrendas}
-              </div>
-              <div className="text-left">
-                <span className="text-xs font-black block leading-none">Ver Carrito</span>
-                <span className="text-[10px] text-slate-300">
-                  {carrito.length} {carrito.length === 1 ? 'producto' : 'productos'}
-                </span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-black text-emerald-400">
-                ${totalFinal.toFixed(2)}
-              </span>
-              <ArrowRight className="w-4 h-4 text-slate-300" />
-            </div>
-          </button>
-        </div>
-      )}
-
     </div>
   );
 };

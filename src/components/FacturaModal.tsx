@@ -28,11 +28,13 @@ import { ThermalPrinterService } from '../utils/thermalPrinter';
 import { compartirODescargarImagen } from '../utils/imageExport';
 import { getAccessToken, googleSignIn } from '../services/gmailAuth';
 import { enviarCorreoGmail, generarHtmlFactura } from '../services/gmailService';
+import { abrirEnlaceSeguro } from '../utils/safeLink';
 
 interface FacturaModalProps {
   numeroVenta: string;
   ventas: VentaRegistro[];
   clientes?: Cliente[];
+  tasaCambio?: number;
   onClose: () => void;
 }
 
@@ -40,13 +42,16 @@ export const FacturaModal: React.FC<FacturaModalProps> = ({
   numeroVenta,
   ventas,
   clientes = [],
+  tasaCambio = 36.65,
   onClose
 }) => {
   const lineas = ventas.filter(v => v.numeroVenta === numeroVenta);
   if (!lineas.length) return null;
 
   const cabecera = lineas[0];
+  const tasaVenta = cabecera.tasaCambio || tasaCambio || 36.65;
   const total = lineas.reduce((acc, it) => acc + it.total, 0);
+  const totalNIO = total * tasaVenta;
   const totalArticulos = lineas.reduce((acc, it) => acc + it.cantidad, 0);
 
   // Buscar información adicional del cliente si existe
@@ -178,13 +183,17 @@ export const FacturaModal: React.FC<FacturaModalProps> = ({
 
   // Generar texto estructurado para WhatsApp
   const generarTextoWhatsApp = () => {
-    const lineasTexto = lineas.map(it => 
-      `• ${it.cantidad}x ${it.producto} ($${it.precioUnitario.toFixed(2)} c/u) = *$${it.total.toFixed(2)}*`
-    ).join('\n');
+    const lineasTexto = lineas.map(it => {
+      const itNIO = (it.total * tasaVenta).toFixed(2);
+      const itUnitNIO = (it.precioUnitario * tasaVenta).toFixed(2);
+      return `• ${it.cantidad}x ${it.producto} ($${it.precioUnitario.toFixed(2)} / C$ ${itUnitNIO}) = *$${it.total.toFixed(2)}* (C$ ${itNIO})`;
+    }).join('\n');
 
     let textoEfectivo = '';
     if (cabecera.efectivoRecibido && cabecera.efectivoRecibido > 0) {
-      textoEfectivo = `\n💵 *Efectivo Recibido:* $${cabecera.efectivoRecibido.toFixed(2)}\n🪙 *Cambio / Vuelto:* $${(cabecera.cambio || 0).toFixed(2)}`;
+      const recNIO = (cabecera.efectivoRecibido * tasaVenta).toFixed(2);
+      const camNIO = ((cabecera.cambio || 0) * tasaVenta).toFixed(2);
+      textoEfectivo = `\n💵 *Efectivo Recibido:* $${cabecera.efectivoRecibido.toFixed(2)} (C$ ${recNIO})\n🪙 *Cambio / Vuelto:* $${(cabecera.cambio || 0).toFixed(2)} (C$ ${camNIO})`;
     }
 
     return `🌸 *VARIEDADES CS - DE TODO UN POCO* 🌸
@@ -195,12 +204,13 @@ export const FacturaModal: React.FC<FacturaModalProps> = ({
 👤 *Cliente:* ${cabecera.cliente || 'Consumidor Final'}
 🧑‍💼 *Atendido por:* ${cabecera.usuario}
 💳 *Forma de Pago:* ${cabecera.formaPago}
+💵 *Tasa Oficial:* 1 $ USD = C$ ${tasaVenta.toFixed(2)} NIO
 ${cabecera.numCredito ? `📝 *N° Crédito:* ${cabecera.numCredito}\n` : ''}================================
 🛍️ *DETALLE DE COMPRA:*
 ${lineasTexto}
 ================================
 📦 *Total Artículos:* ${totalArticulos} unidad(es)
-💰 *TOTAL A PAGAR:* *$${total.toFixed(2)}*${textoEfectivo}
+💰 *TOTAL A PAGAR:* *$${total.toFixed(2)} USD* (C$ ${totalNIO.toFixed(2)} Córdobas)${textoEfectivo}
 ================================
 ✨ ¡Muchas gracias por su preferencia! ✨
 🚫 *POLÍTICA:* Por higiene, sellado y autenticidad en perfumería, cosméticos y artículos de uso personal, NO SE ACEPTAN CAMBIOS NI DEVOLUCIONES de producto una vez retirado.
@@ -230,7 +240,7 @@ ${lineasTexto}
       }
     }
 
-    window.open(url, '_blank', 'noopener,noreferrer');
+    abrirEnlaceSeguro(url);
   };
 
   return (
@@ -407,6 +417,12 @@ ${lineasTexto}
                 <div className="text-3xl sm:text-4xl font-black text-white tracking-tight">
                   ${total.toFixed(2)}
                 </div>
+                <div className="text-sm font-extrabold text-amber-300 mt-0.5">
+                  = C$ {totalNIO.toFixed(2)} NIO
+                </div>
+                <div className="text-[10px] text-slate-400 mt-1">
+                  Tasa Oficial: 1 $ USD = C$ {tasaVenta.toFixed(2)}
+                </div>
                 <div className="mt-2 flex items-center justify-center gap-2 text-xs">
                   <span className="px-2 py-0.5 bg-slate-800 rounded-md text-pink-300 font-semibold border border-slate-700">
                     Forma: {cabecera.formaPago}
@@ -417,9 +433,14 @@ ${lineasTexto}
                 </div>
 
                 {cabecera.formaPago === 'Crédito' && (
-                  <div className="mt-3 p-2.5 bg-rose-600 text-white rounded-xl font-black text-center text-xs tracking-wider uppercase flex items-center justify-center gap-1.5 shadow-sm">
-                    <CreditCard className="w-4 h-4" />
-                    <span>CRÉDITO: MONTO A DEBER: ${total.toFixed(2)}</span>
+                  <div className="mt-3 p-2.5 bg-rose-600 text-white rounded-xl font-black text-center text-xs tracking-wider uppercase flex flex-col items-center justify-center gap-0.5 shadow-sm">
+                    <div className="flex items-center gap-1.5">
+                      <CreditCard className="w-4 h-4" />
+                      <span>CRÉDITO: MONTO A DEBER: ${total.toFixed(2)}</span>
+                    </div>
+                    <span className="text-amber-200 text-[11px] font-extrabold">
+                      = C$ {totalNIO.toFixed(2)} CÓRDOBAS
+                    </span>
                   </div>
                 )}
               </div>
@@ -658,11 +679,17 @@ ${lineasTexto}
                 </div>
                 <div className="flex justify-between text-slate-600 text-[11px]">
                   <span>Subtotal:</span>
-                  <span>${total.toFixed(2)}</span>
+                  <span>${total.toFixed(2)} (C$ {totalNIO.toFixed(2)})</span>
                 </div>
                 <div className="flex justify-between text-sm sm:text-base font-black text-slate-900 border-t border-slate-400 pt-1">
                   <span>TOTAL A PAGAR:</span>
-                  <span className="text-blue-600">${total.toFixed(2)}</span>
+                  <div className="text-right">
+                    <span className="text-blue-600 block">${total.toFixed(2)}</span>
+                    <span className="text-emerald-700 text-xs block font-bold">C$ {totalNIO.toFixed(2)}</span>
+                  </div>
+                </div>
+                <div className="text-right text-[9px] text-slate-500 font-mono">
+                  Tasa: 1 $ USD = C$ {tasaVenta.toFixed(2)} NIO
                 </div>
 
                 {cabecera.formaPago === 'Crédito' && (

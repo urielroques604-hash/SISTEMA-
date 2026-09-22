@@ -1,10 +1,13 @@
 import React from 'react';
-import { Menu, Trash2, FileSpreadsheet, Upload, KeyRound, ImageOff, Image as ImageIcon } from 'lucide-react';
+import { Menu, Trash2, FileSpreadsheet, Upload, KeyRound, ImageOff, Image as ImageIcon, Coins } from 'lucide-react';
+import { formatoUSD, formatoNIO, aCordobas } from '../utils/currency';
 
 interface TopbarProps {
   titulo: string;
   usuario: string;
   saldoCaja: number;
+  tasaCambio: number;
+  onAbrirModalTasa: () => void;
   onExportarExcel: () => void;
   onImportarExcel: () => void;
   onLimpiarTodo: () => void;
@@ -18,6 +21,8 @@ export const Topbar: React.FC<TopbarProps> = ({
   titulo,
   usuario,
   saldoCaja,
+  tasaCambio,
+  onAbrirModalTasa,
   onExportarExcel,
   onImportarExcel,
   onLimpiarTodo,
@@ -26,6 +31,8 @@ export const Topbar: React.FC<TopbarProps> = ({
   onToggleModoSinImagenes,
   onAbrirCambiarPassword
 }) => {
+  const saldoCordobas = aCordobas(saldoCaja, tasaCambio);
+
   return (
     <header className="h-14 bg-white border-b border-slate-200 px-3 sm:px-6 flex items-center justify-between flex-shrink-0 z-10">
       <div className="flex items-center gap-2 sm:gap-3 min-w-0">
@@ -54,6 +61,17 @@ export const Topbar: React.FC<TopbarProps> = ({
       </div>
 
       <div className="flex items-center gap-1.5 sm:gap-2">
+        {/* Botón Configurar Tasa de Cambio (Dólares / Córdobas) */}
+        <button
+          onClick={onAbrirModalTasa}
+          title="Tasa de Cambio Oficial (Clic para modificar)"
+          className="flex items-center gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-black transition cursor-pointer shadow-2xs group"
+        >
+          <Coins className="w-3.5 h-3.5 text-emerald-600 group-hover:rotate-12 transition-transform" />
+          <span className="hidden sm:inline">Tasa:</span>
+          <span>1$ = C${tasaCambio.toFixed(2)}</span>
+        </button>
+
         {/* Conmutador: Modo Sin Fotos / Con Fotos */}
         <button
           onClick={onToggleModoSinImagenes}
@@ -77,7 +95,7 @@ export const Topbar: React.FC<TopbarProps> = ({
           )}
         </button>
 
-        {/* Botón: Cambiar Contraseña / Enviar Enlace */}
+        {/* Botón: Cambiar Contraseña */}
         <button
           onClick={onAbrirCambiarPassword}
           title="Cambiar contraseña o enviar enlace oficial a mi correo"
@@ -87,10 +105,16 @@ export const Topbar: React.FC<TopbarProps> = ({
           <span className="hidden lg:inline">Contraseña</span>
         </button>
 
-        {/* Saldo de Caja visible en móvil y desktop */}
-        <div className="flex items-center gap-1 bg-slate-100 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-xs">
+        {/* Saldo de Caja en Dólar y Córdoba */}
+        <div 
+          className="flex items-center gap-1 bg-slate-100 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-xs"
+          title={`Saldo Caja: ${formatoUSD(saldoCaja)} = ${formatoNIO(saldoCordobas)}`}
+        >
           <span className="text-slate-500 font-medium hidden sm:inline">Caja:</span>
-          <span className="font-extrabold text-emerald-600">${saldoCaja.toFixed(2)}</span>
+          <span className="font-extrabold text-emerald-600">{formatoUSD(saldoCaja)}</span>
+          <span className="text-[10px] text-slate-400 font-semibold hidden xl:inline">
+            / {formatoNIO(saldoCordobas)}
+          </span>
         </div>
 
         {/* Botón Importar Hoja de Excel */}
