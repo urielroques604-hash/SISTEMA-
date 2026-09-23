@@ -16,7 +16,12 @@ import {
   ImageIcon,
   ImageOff,
   Coins,
-  ArrowRightLeft
+  ArrowRightLeft,
+  Tag,
+  Layers,
+  TrendingUp,
+  Building2,
+  PlusCircle
 } from 'lucide-react';
 import { Producto } from '../types';
 import { formatoUSD, formatoNIO, aCordobas, aDolares } from '../utils/currency';
@@ -26,6 +31,28 @@ import {
   obtenerImagenSugerida,
   ImagenPerfume
 } from '../utils/perfumeBrands';
+
+const CATEGORIAS_RAPIDAS = [
+  'Perfumes',
+  'Cosméticos',
+  'Bolsos',
+  'Cuidado Personal',
+  'Ropa',
+  'Calzado',
+  'Accesorios',
+  'General'
+];
+
+const MARCAS_RAPIDAS = [
+  'Carolina Herrera',
+  'Dior',
+  'Chanel',
+  'Paco Rabanne',
+  'Versace',
+  "Victoria's Secret",
+  'Guess',
+  'Calvin Klein'
+];
 
 interface ProductosProps {
   productos: Producto[];
@@ -75,10 +102,27 @@ export const ProductosView: React.FC<ProductosProps> = ({
   const [formPrecioVentaNIO, setFormPrecioVentaNIO] = useState<string>('');
   const [errorMsg, setErrorMsg] = useState('');
 
-  // Sincronizar precios de compra
+  // Generar siguiente código automático
+  const generarSiguienteCodigo = (lista: Producto[] = productos): string => {
+    let maxNum = 0;
+    lista.forEach(p => {
+      const match = p.codigo.match(/^P(\d+)$/i);
+      if (match) {
+        const n = parseInt(match[1], 10);
+        if (n > maxNum) maxNum = n;
+      }
+    });
+    if (maxNum === 0) {
+      maxNum = lista.length;
+    }
+    return `P${String(maxNum + 1).padStart(3, '0')}`;
+  };
+
+  // Sincronizar precios de compra (con soporte de coma y punto decimal)
   const handleCompraUSDChange = (valStr: string) => {
     setFormPrecioCompraUSD(valStr);
-    const val = parseFloat(valStr);
+    const sanitized = valStr.replace(',', '.');
+    const val = parseFloat(sanitized);
     if (!isNaN(val) && val >= 0) {
       setFormPrecioCompraNIO((val * tasaCambio).toFixed(2));
     } else {
@@ -88,7 +132,8 @@ export const ProductosView: React.FC<ProductosProps> = ({
 
   const handleCompraNIOChange = (valStr: string) => {
     setFormPrecioCompraNIO(valStr);
-    const val = parseFloat(valStr);
+    const sanitized = valStr.replace(',', '.');
+    const val = parseFloat(sanitized);
     if (!isNaN(val) && val >= 0 && tasaCambio > 0) {
       setFormPrecioCompraUSD((val / tasaCambio).toFixed(2));
     } else {
@@ -96,10 +141,11 @@ export const ProductosView: React.FC<ProductosProps> = ({
     }
   };
 
-  // Sincronizar precios de venta
+  // Sincronizar precios de venta (con soporte de coma y punto decimal)
   const handleVentaUSDChange = (valStr: string) => {
     setFormPrecioVentaUSD(valStr);
-    const val = parseFloat(valStr);
+    const sanitized = valStr.replace(',', '.');
+    const val = parseFloat(sanitized);
     if (!isNaN(val) && val >= 0) {
       setFormPrecioVentaNIO((val * tasaCambio).toFixed(2));
     } else {
@@ -109,7 +155,8 @@ export const ProductosView: React.FC<ProductosProps> = ({
 
   const handleVentaNIOChange = (valStr: string) => {
     setFormPrecioVentaNIO(valStr);
-    const val = parseFloat(valStr);
+    const sanitized = valStr.replace(',', '.');
+    const val = parseFloat(sanitized);
     if (!isNaN(val) && val >= 0 && tasaCambio > 0) {
       setFormPrecioVentaUSD((val / tasaCambio).toFixed(2));
     } else {
@@ -133,13 +180,14 @@ export const ProductosView: React.FC<ProductosProps> = ({
 
   const abrirModalNuevo = () => {
     setProductoEditar(null);
-    setFormCodigo(`P${String(productos.length + 1).padStart(3, '0')}`);
+    setFormCodigo(generarSiguienteCodigo());
     setFormNombre('');
     setFormCategoria('Perfumes');
     setFormMarca('');
     setFormImagen('');
     setFormSinImagen(false);
     setFormExistencia(10);
+    setMonedaPrecios('NIO');
     setFormPrecioCompraUSD('15.00');
     setFormPrecioCompraNIO((15.00 * tasaCambio).toFixed(2));
     setFormPrecioVentaUSD('25.00');
@@ -227,38 +275,68 @@ export const ProductosView: React.FC<ProductosProps> = ({
     setTimeout(() => setToastMensaje(null), 3500);
   };
 
-  const guardar = (e: React.FormEvent) => {
+  const guardar = (e: React.FormEvent, agregarOtro: boolean = false) => {
     e.preventDefault();
-    if (!formCodigo.trim() || !formNombre.trim()) {
-      setErrorMsg('El código y el nombre del producto son obligatorios.');
+    const codLimpio = formCodigo.trim().toUpperCase();
+    const nomLimpio = formNombre.trim();
+
+    if (!codLimpio) {
+      setErrorMsg('El código del producto es obligatorio.');
+      return;
+    }
+
+    if (!nomLimpio) {
+      setErrorMsg('El nombre del producto o fragancia es obligatorio.');
       return;
     }
 
     // Respetar opción de no llevar imagen o imagen asignada
     const imagenFinal = formSinImagen ? '' : formImagen.trim();
 
-    const pCompUSD = parseFloat(formPrecioCompraUSD) || 0;
-    const pCompNIO = parseFloat(formPrecioCompraNIO) || (pCompUSD * tasaCambio);
-    const pVentUSD = parseFloat(formPrecioVentaUSD) || 0;
-    const pVentNIO = parseFloat(formPrecioVentaNIO) || (pVentUSD * tasaCambio);
+    const pCompUSD = parseFloat((formPrecioCompraUSD || '0').replace(',', '.')) || 0;
+    const pCompNIO = parseFloat((formPrecioCompraNIO || '0').replace(',', '.')) || (pCompUSD * tasaCambio);
+    const pVentUSD = parseFloat((formPrecioVentaUSD || '0').replace(',', '.')) || 0;
+    const pVentNIO = parseFloat((formPrecioVentaNIO || '0').replace(',', '.')) || (pVentUSD * tasaCambio);
 
-    onGuardarProducto({
-      codigo: formCodigo.trim().toUpperCase(),
-      producto: formNombre.trim(),
+    if (pVentUSD <= 0 && pVentNIO <= 0) {
+      setErrorMsg('Por favor ingresa un precio de venta válido mayor a cero.');
+      return;
+    }
+
+    const productoAGuardar: Producto = {
+      codigo: codLimpio,
+      producto: nomLimpio,
       categoria: formCategoria.trim() || 'General',
       marca: formMarca.trim() || undefined,
       imagen: imagenFinal,
       sinImagen: formSinImagen || !imagenFinal,
-      existencia: Number(formExistencia) || 0,
+      existencia: Math.max(0, Number(formExistencia) || 0),
       precioCompra: pCompUSD,
       precioCompraCordobas: pCompNIO,
       precioVenta: pVentUSD,
       precioVentaCordobas: pVentNIO
-    });
+    };
 
-    setModalAbierto(false);
-    setToastMensaje(formSinImagen ? 'Producto guardado sin imagen.' : 'Producto guardado con éxito.');
-    setTimeout(() => setToastMensaje(null), 3000);
+    onGuardarProducto(productoAGuardar);
+
+    if (agregarOtro) {
+      const listaSimulada = [...productos.filter(p => p.codigo !== codLimpio), productoAGuardar];
+      const sigCodigo = generarSiguienteCodigo(listaSimulada);
+      setProductoEditar(null);
+      setFormCodigo(sigCodigo);
+      setFormNombre('');
+      setFormMarca('');
+      setFormImagen('');
+      setFormSinImagen(false);
+      setFormExistencia(10);
+      setErrorMsg('');
+      setMostrarSelectorImagenes(false);
+      setToastMensaje(`¡"${codLimpio} - ${nomLimpio}" guardado con éxito! Listo para registrar el siguiente.`);
+    } else {
+      setModalAbierto(false);
+      setToastMensaje(`¡Producto "${codLimpio} - ${nomLimpio}" guardado con éxito!`);
+    }
+    setTimeout(() => setToastMensaje(null), 3500);
   };
 
   return (
@@ -471,516 +549,668 @@ export const ProductosView: React.FC<ProductosProps> = ({
         </div>
       </div>
 
-      {/* Modal Agregar / Editar */}
-      {modalAbierto && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md border border-slate-200 overflow-hidden">
-            <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
-              <h3 className="font-bold text-sm text-slate-800">
-                {productoEditar ? 'Editar Producto' : 'Nuevo Producto'}
-              </h3>
-              <button
-                onClick={() => setModalAbierto(false)}
-                className="text-slate-400 hover:text-slate-600"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+      {/* Modal Horizontal Agregar / Editar Producto */}
+      {modalAbierto && (() => {
+        const pCompCalc = parseFloat((formPrecioCompraUSD || '0').replace(',', '.')) || 0;
+        const pVentCalc = parseFloat((formPrecioVentaUSD || '0').replace(',', '.')) || 0;
+        const gananciaUnitUSD = Math.max(0, pVentCalc - pCompCalc);
+        const gananciaUnitNIO = gananciaUnitUSD * tasaCambio;
+        const margenPct = pVentCalc > 0 ? ((gananciaUnitUSD / pVentCalc) * 100) : 0;
+        const stockActual = Math.max(0, Number(formExistencia) || 0);
+        const inversionStockUSD = stockActual * pCompCalc;
+        const ventaEstimadaUSD = stockActual * pVentCalc;
+        const codigoYaExiste = !productoEditar && productos.some(p => p.codigo.trim().toUpperCase() === formCodigo.trim().toUpperCase());
 
-            <form onSubmit={guardar} className="p-5 space-y-3 text-xs">
+        return (
+          <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center z-50 p-2 sm:p-4 overflow-y-auto">
+            <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-5xl xl:max-w-6xl border border-slate-200 overflow-hidden flex flex-col max-h-[94vh] my-auto animate-scale-in">
+              
+              {/* Encabezado Horizontal */}
+              <div className="px-5 py-3.5 sm:px-6 sm:py-4 border-b border-slate-200 bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-500/20 border border-blue-400/30 flex items-center justify-center text-blue-400">
+                    <Package className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-bold text-base text-white">
+                        {productoEditar ? `Editar Producto: ${formCodigo}` : 'Registro de Producto (Catálogo e Inventario)'}
+                      </h3>
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-400/30">
+                        {productoEditar ? 'Modo Edición' : 'Nuevo Registro'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-300 hidden sm:block">
+                      Formulario horizontal con cálculo automático de precios, conversión de divisas y stock.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2.5">
+                  {/* Badge de Tasa Bancaria */}
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 border border-white/15 text-xs text-emerald-300">
+                    <Coins className="w-3.5 h-3.5 text-emerald-400" />
+                    <span className="font-semibold hidden md:inline text-slate-300">Tasa Oficial:</span>
+                    <span className="font-black font-mono">1 $ = C$ {tasaCambio.toFixed(2)}</span>
+                    {onAbrirModalTasa && (
+                      <button
+                        type="button"
+                        onClick={onAbrirModalTasa}
+                        className="ml-1 text-[10px] text-emerald-400 hover:text-white underline font-bold"
+                        title="Cambiar Tasa de Cambio"
+                      >
+                        Cambiar
+                      </button>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setModalAbierto(false)}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
+                    title="Cerrar ventana"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Mensaje de Error si hay */}
               {errorMsg && (
-                <div className="p-2.5 bg-rose-50 text-rose-700 border border-rose-200 rounded-lg flex items-center gap-1.5">
-                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <div className="mx-5 mt-4 p-3 bg-rose-50 text-rose-800 border border-rose-200 rounded-xl flex items-center gap-2 text-xs font-semibold shrink-0">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
                   <span>{errorMsg}</span>
                 </div>
               )}
 
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Código *</label>
-                <input
-                  type="text"
-                  required
-                  value={formCodigo}
-                  disabled={!!productoEditar}
-                  onChange={e => setFormCodigo(e.target.value)}
-                  className="w-full p-2 border border-slate-200 rounded-lg font-mono uppercase bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none"
-                />
-              </div>
+              {/* Cuerpo del Formulario en 3 Columnas Horizontales */}
+              <form onSubmit={e => guardar(e, false)} className="flex flex-col flex-1 overflow-hidden">
+                <div className="p-5 sm:p-6 overflow-y-auto flex-1 space-y-6">
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 xl:gap-6">
+                    
+                    {/* COLUMNA 1: IDENTIFICACIÓN Y DATOS BÁSICOS (lg:col-span-4) */}
+                    <div className="lg:col-span-4 space-y-4 bg-slate-50/70 p-4 rounded-2xl border border-slate-200 flex flex-col justify-between">
+                      <div className="space-y-3.5">
+                        <div className="flex items-center gap-2 pb-2 border-b border-slate-200 text-slate-800">
+                          <Tag className="w-4 h-4 text-blue-600" />
+                          <h4 className="font-bold text-xs uppercase tracking-wide">1. Datos del Producto</h4>
+                        </div>
 
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Nombre del Producto / Fragancia *</label>
-                <input
-                  type="text"
-                  required
-                  value={formNombre}
-                  onChange={e => {
-                    setFormNombre(e.target.value);
-                    if (!formImagen && formMarca && !formSinImagen) {
-                      setFormImagen(obtenerImagenSugerida(formMarca, e.target.value));
-                    }
-                  }}
-                  placeholder="Ej: Good Girl, Sauvage, Bombshell, 1 Million..."
-                  className="w-full p-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                />
-              </div>
+                        {/* Código de Producto */}
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="font-bold text-xs text-slate-700">Código de Producto *</label>
+                            {!productoEditar && (
+                              <button
+                                type="button"
+                                onClick={() => setFormCodigo(generarSiguienteCodigo())}
+                                className="text-[11px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer"
+                              >
+                                <PlusCircle className="w-3 h-3" />
+                                <span>Autogenerar</span>
+                              </button>
+                            )}
+                          </div>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              required
+                              value={formCodigo}
+                              disabled={!!productoEditar}
+                              onChange={e => setFormCodigo(e.target.value)}
+                              placeholder="Ej: P001"
+                              className="w-full px-3 py-2 border border-slate-300 rounded-xl font-mono uppercase bg-white text-slate-900 font-bold focus:ring-2 focus:ring-blue-500 outline-none text-xs"
+                            />
+                          </div>
+                          {codigoYaExiste ? (
+                            <p className="text-[10px] text-amber-600 font-semibold mt-1 flex items-center gap-1">
+                              <span>⚠️ Este código ya existe en el catálogo. Si guardas, se actualizará este producto.</span>
+                            </p>
+                          ) : (
+                            <p className="text-[10px] text-slate-400 mt-1">Identificador único del producto o código de barra</p>
+                          )}
+                        </div>
 
-              {/* Opción destacada: Quitar imagen o no llevar imágenes */}
-              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-3">
-                <label className="flex items-center gap-2.5 cursor-pointer flex-1">
-                  <input 
-                    type="checkbox"
-                    checked={formSinImagen}
-                    onChange={e => {
-                      const check = e.target.checked;
-                      setFormSinImagen(check);
-                      if (check) {
-                        setFormImagen('');
-                        setMostrarSelectorImagenes(false);
-                      }
-                    }}
-                    className="w-4 h-4 rounded text-rose-600 focus:ring-rose-500 cursor-pointer"
-                  />
-                  <div>
-                    <span className="font-bold text-slate-800 text-xs block">
-                      No llevar imagen (Guardar sin foto)
-                    </span>
-                    <span className="text-[10px] text-slate-500">
-                      El producto se mostrará con un icono genérico en el catálogo y POS
-                    </span>
-                  </div>
-                </label>
-                {formImagen && !formSinImagen && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setFormImagen('');
-                      setFormSinImagen(true);
-                    }}
-                    className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-[11px] font-bold flex items-center gap-1 transition cursor-pointer shrink-0"
-                  >
-                    <ImageOff className="w-3.5 h-3.5" />
-                    <span>Quitar foto actual</span>
-                  </button>
-                )}
-              </div>
+                        {/* Nombre del Producto / Fragancia */}
+                        <div>
+                          <label className="block font-bold text-xs text-slate-700 mb-1">
+                            Nombre del Producto / Fragancia *
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={formNombre}
+                            onChange={e => {
+                              const nuevoNombre = e.target.value;
+                              setFormNombre(nuevoNombre);
+                              if (!formImagen && formMarca && !formSinImagen) {
+                                setFormImagen(obtenerImagenSugerida(formMarca, nuevoNombre));
+                              }
+                            }}
+                            placeholder="Ej: Good Girl, Sauvage, Bombshell, Bolso Michael..."
+                            className="w-full px-3 py-2 border border-slate-300 rounded-xl bg-white text-slate-900 font-semibold focus:ring-2 focus:ring-blue-500 outline-none text-xs"
+                          />
+                        </div>
 
-              {/* Marca del Perfume y Búsqueda Automática de Imagen (Solo si NO está en modo sin imagen) */}
-              {!formSinImagen ? (
-                <div className="p-3 bg-pink-50/70 border border-pink-200 rounded-xl space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="block font-bold text-pink-900 text-xs">
-                      Marca del Perfume
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => handleBuscarImagenPorMarca()}
-                      className="text-[11px] font-bold text-pink-700 hover:text-pink-900 flex items-center gap-1 cursor-pointer bg-white px-2 py-0.5 rounded-md border border-pink-200 shadow-2xs hover:bg-pink-100 transition"
-                    >
-                      <Sparkles className="w-3.5 h-3.5 text-pink-600" />
-                      <span>Buscar Imagen por Marca</span>
-                    </button>
-                  </div>
+                        {/* Marca del Producto */}
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="font-bold text-xs text-slate-700">Marca / Fabricante</label>
+                            <span className="text-[10px] text-slate-400">Opcional</span>
+                          </div>
+                          <input
+                            type="text"
+                            list="lista-marcas-horiz"
+                            value={formMarca}
+                            onChange={e => seleccionarMarca(e.target.value)}
+                            placeholder="Ej: Carolina Herrera, Dior, Chanel..."
+                            className="w-full px-3 py-2 border border-slate-300 rounded-xl bg-white text-slate-900 font-medium focus:ring-2 focus:ring-blue-500 outline-none text-xs"
+                          />
+                          <datalist id="lista-marcas-horiz">
+                            {MARCAS_PERFUMES_POPULARES.map(m => (
+                              <option key={m} value={m} />
+                            ))}
+                          </datalist>
 
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      list="marcas-perfumes"
-                      value={formMarca}
-                      onChange={e => seleccionarMarca(e.target.value)}
-                      placeholder="Ej: Carolina Herrera, Dior, Chanel, Versace..."
-                      className="flex-1 p-2 bg-white border border-pink-300 rounded-lg text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-pink-500 outline-none"
-                    />
-                    <datalist id="marcas-perfumes">
-                      {MARCAS_PERFUMES_POPULARES.map(m => (
-                        <option key={m} value={m} />
-                      ))}
-                    </datalist>
-                  </div>
+                          {/* Chips rápidos de marcas populares */}
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {MARCAS_RAPIDAS.slice(0, 5).map(m => (
+                              <button
+                                key={m}
+                                type="button"
+                                onClick={() => seleccionarMarca(m)}
+                                className={`text-[10px] px-2 py-0.5 rounded-md border font-semibold transition cursor-pointer ${
+                                  formMarca.toLowerCase() === m.toLowerCase()
+                                    ? 'bg-blue-100 text-blue-800 border-blue-300'
+                                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                                }`}
+                              >
+                                {m}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
 
-                  {/* Previsualizador de la imagen asignada */}
-                  <div className="flex items-center gap-3 pt-1">
-                    <div className="w-14 h-14 rounded-xl overflow-hidden bg-white border-2 border-pink-300 shadow-xs shrink-0 flex items-center justify-center">
-                      {formImagen ? (
-                        <img 
-                          src={formImagen} 
-                          alt="Preview" 
-                          className="w-full h-full object-cover"
-                          onError={() => setFormImagen('https://images.unsplash.com/photo-1592945403244-b3fbafd7f539?auto=format&fit=crop&w=200&q=80')}
-                        />
-                      ) : (
-                        <ImageIcon className="w-6 h-6 text-pink-300" />
-                      )}
+                        {/* Categoría */}
+                        <div>
+                          <label className="block font-bold text-xs text-slate-700 mb-1">Categoría</label>
+                          <input
+                            type="text"
+                            value={formCategoria}
+                            onChange={e => setFormCategoria(e.target.value)}
+                            placeholder="Ej: Perfumes, Cremas, Bolsos..."
+                            className="w-full px-3 py-2 border border-slate-300 rounded-xl bg-white text-slate-900 font-medium focus:ring-2 focus:ring-blue-500 outline-none text-xs"
+                          />
+                          {/* Chips rápidos de categorías */}
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {CATEGORIAS_RAPIDAS.map(c => (
+                              <button
+                                key={c}
+                                type="button"
+                                onClick={() => setFormCategoria(c)}
+                                className={`text-[10px] px-2 py-0.5 rounded-md border font-semibold transition cursor-pointer ${
+                                  formCategoria.toLowerCase() === c.toLowerCase()
+                                    ? 'bg-indigo-100 text-indigo-800 border-indigo-300'
+                                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                                }`}
+                              >
+                                {c}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Stock / Existencia */}
+                        <div className="pt-2 border-t border-slate-200">
+                          <label className="block font-bold text-xs text-slate-800 mb-1">
+                            Existencia Inicial (Stock en Unidades) *
+                          </label>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setFormExistencia(prev => Math.max(0, prev - 1))}
+                              className="w-8 h-8 rounded-lg bg-white border border-slate-300 text-slate-700 font-bold hover:bg-slate-100 flex items-center justify-center text-sm"
+                            >
+                              -
+                            </button>
+                            <input
+                              type="number"
+                              min="0"
+                              value={formExistencia}
+                              onChange={e => setFormExistencia(Math.max(0, parseInt(e.target.value) || 0))}
+                              className="w-24 text-center px-3 py-1.5 border border-slate-300 rounded-xl bg-white text-slate-900 font-black focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setFormExistencia(prev => prev + 1)}
+                              className="w-8 h-8 rounded-lg bg-white border border-slate-300 text-slate-700 font-bold hover:bg-slate-100 flex items-center justify-center text-sm"
+                            >
+                              +
+                            </button>
+                            <div className="flex items-center gap-1 ml-auto">
+                              {[5, 10, 20].map(n => (
+                                <button
+                                  key={n}
+                                  type="button"
+                                  onClick={() => setFormExistencia(prev => prev + n)}
+                                  className="text-[10px] px-2 py-1 rounded-md bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 font-bold cursor-pointer"
+                                >
+                                  +{n}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
 
-                    <div className="flex-1 text-[11px] text-slate-600">
-                      <span className="font-bold text-slate-800 block">
-                        {formImagen ? 'Imagen vinculada según marca' : 'Sin imagen específica'}
-                      </span>
-                      <span className="text-[10px] text-slate-500 line-clamp-1 break-all">
-                        {formImagen || 'Se asignará automáticamente según la marca elegida'}
-                      </span>
-                      <div className="flex items-center gap-2 mt-1">
-                        <button
-                          type="button"
-                          onClick={() => handleBuscarImagenPorMarca()}
-                          className="text-[10px] font-bold text-blue-600 hover:underline cursor-pointer"
-                        >
-                          Ver otras imágenes de esta marca
-                        </button>
-                        {formImagen && (
+                    {/* COLUMNA 2: FOTO Y PRESENTACIÓN (lg:col-span-4) */}
+                    <div className="lg:col-span-4 space-y-4 bg-slate-50/70 p-4 rounded-2xl border border-slate-200 flex flex-col justify-between">
+                      <div className="space-y-3.5">
+                        <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                          <div className="flex items-center gap-2 text-slate-800">
+                            <ImageIcon className="w-4 h-4 text-pink-600" />
+                            <h4 className="font-bold text-xs uppercase tracking-wide">2. Foto y Presentación</h4>
+                          </div>
+                        </div>
+
+                        {/* Switch Modo con imagen vs sin imagen */}
+                        <div className="grid grid-cols-2 gap-2 p-1 bg-white rounded-xl border border-slate-200">
+                          <button
+                            type="button"
+                            onClick={() => setFormSinImagen(false)}
+                            className={`py-2 px-3 rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                              !formSinImagen
+                                ? 'bg-pink-600 text-white shadow-xs'
+                                : 'text-slate-600 hover:text-slate-900 bg-transparent'
+                            }`}
+                          >
+                            <ImageIcon className="w-3.5 h-3.5" />
+                            <span>Con Foto</span>
+                          </button>
                           <button
                             type="button"
                             onClick={() => {
-                              setFormImagen('');
                               setFormSinImagen(true);
+                              setFormImagen('');
+                              setMostrarSelectorImagenes(false);
                             }}
-                            className="text-[10px] text-rose-600 hover:underline cursor-pointer"
+                            className={`py-2 px-3 rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                              formSinImagen
+                                ? 'bg-slate-800 text-white shadow-xs'
+                                : 'text-slate-600 hover:text-slate-900 bg-transparent'
+                            }`}
                           >
-                            Quitar
+                            <ImageOff className="w-3.5 h-3.5" />
+                            <span>Sin Foto</span>
                           </button>
+                        </div>
+
+                        {!formSinImagen ? (
+                          <div className="space-y-3">
+                            {/* Previsualizador de la imagen */}
+                            <div className="relative rounded-2xl overflow-hidden bg-white border-2 border-dashed border-pink-200 p-2 flex flex-col items-center justify-center min-h-[160px]">
+                              {formImagen ? (
+                                <div className="relative w-full flex flex-col items-center">
+                                  <img
+                                    src={formImagen}
+                                    alt="Vista previa"
+                                    className="h-32 w-auto max-w-full object-contain rounded-xl shadow-xs"
+                                    onError={() => setFormImagen('https://images.unsplash.com/photo-1592945403244-b3fbafd7f539?auto=format&fit=crop&w=300&q=80')}
+                                  />
+                                  <div className="mt-2 flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleBuscarImagenPorMarca()}
+                                      className="text-[11px] font-bold text-pink-700 bg-pink-50 hover:bg-pink-100 border border-pink-200 px-2.5 py-1 rounded-lg flex items-center gap-1 transition cursor-pointer"
+                                    >
+                                      <Sparkles className="w-3 h-3 text-pink-600" />
+                                      <span>Cambiar por Marca</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setFormImagen('');
+                                        setFormSinImagen(true);
+                                      }}
+                                      className="text-[11px] font-semibold text-rose-600 hover:underline cursor-pointer px-1"
+                                    >
+                                      Quitar
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="text-center p-3 space-y-2">
+                                  <div className="w-12 h-12 rounded-full bg-pink-50 text-pink-400 flex items-center justify-center mx-auto">
+                                    <ImageIcon className="w-6 h-6" />
+                                  </div>
+                                  <div>
+                                    <p className="font-bold text-xs text-slate-700">Sin foto asignada aún</p>
+                                    <p className="text-[10px] text-slate-400">Puedes buscar por marca o pegar un enlace web directo</p>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleBuscarImagenPorMarca()}
+                                    className="text-[11px] font-bold text-white bg-pink-600 hover:bg-pink-700 px-3 py-1.5 rounded-lg flex items-center gap-1.5 mx-auto transition cursor-pointer shadow-xs"
+                                  >
+                                    <Sparkles className="w-3.5 h-3.5" />
+                                    <span>Buscar Foto Automática</span>
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Campo para ingresar enlace URL manual */}
+                            <div>
+                              <label className="block font-bold text-slate-700 text-[11px] mb-1">
+                                Enlace URL de imagen en internet (Opcional):
+                              </label>
+                              <input
+                                type="url"
+                                value={formImagen}
+                                onChange={e => setFormImagen(e.target.value)}
+                                placeholder="https://ejemplo.com/foto-perfume.jpg"
+                                className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg bg-white text-slate-800 text-[11px] focus:ring-2 focus:ring-pink-500 outline-none"
+                              />
+                            </div>
+
+                            {/* Galería de imágenes sugeridas si se abrió */}
+                            {mostrarSelectorImagenes && imagenesEncontradas.length > 0 && (
+                              <div className="p-2.5 bg-pink-50/70 border border-pink-200 rounded-xl space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[10px] font-bold text-pink-900 uppercase">
+                                    Fotos para {formMarca || 'este producto'}:
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setMostrarSelectorImagenes(false)}
+                                    className="text-[10px] text-slate-400 hover:text-slate-700 cursor-pointer"
+                                  >
+                                    Cerrar
+                                  </button>
+                                </div>
+                                <div className="grid grid-cols-4 gap-1.5 max-h-36 overflow-y-auto p-1">
+                                  {imagenesEncontradas.map((img, idx) => (
+                                    <button
+                                      key={idx}
+                                      type="button"
+                                      onClick={() => {
+                                        setFormImagen(img.url);
+                                        setMostrarSelectorImagenes(false);
+                                      }}
+                                      className={`group relative rounded-lg overflow-hidden border transition cursor-pointer ${
+                                        formImagen === img.url
+                                          ? 'border-pink-600 ring-2 ring-pink-400 shadow-md'
+                                          : 'border-slate-200 hover:border-pink-400'
+                                      }`}
+                                      title={img.nombre}
+                                    >
+                                      <img src={img.url} alt={img.nombre} className="w-full h-10 object-cover" />
+                                      <div className="absolute inset-0 bg-pink-900/60 opacity-0 group-hover:opacity-100 flex items-center justify-center text-[9px] text-white font-bold transition">
+                                        Elegir
+                                      </div>
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-center space-y-2">
+                            <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mx-auto">
+                              <ImageOff className="w-5 h-5" />
+                            </div>
+                            <h5 className="font-bold text-xs text-amber-900">Modo Sin Imagen Activo</h5>
+                            <p className="text-[11px] text-amber-800 leading-relaxed">
+                              Este producto se registrará sin cargar fotos. Se mostrará con un elegante ícono genérico en el punto de venta (POS) y catálogo, optimizando la velocidad del sistema.
+                            </p>
+                          </div>
                         )}
                       </div>
                     </div>
-                  </div>
 
-                  {/* Galería desplegable de imágenes por marca */}
-                  {mostrarSelectorImagenes && imagenesEncontradas.length > 0 && (
-                    <div className="mt-2 pt-2 border-t border-pink-200">
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-[10px] font-bold text-pink-900 uppercase">
-                          Elige una imagen para {formMarca || 'este perfume'}:
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => setMostrarSelectorImagenes(false)}
-                          className="text-[10px] text-slate-400 hover:text-slate-700"
-                        >
-                          Cerrar galería
-                        </button>
-                      </div>
+                    {/* COLUMNA 3: PRECIOS, MONEDA Y RENTABILIDAD (lg:col-span-4) */}
+                    <div className="lg:col-span-4 space-y-4 bg-slate-50/70 p-4 rounded-2xl border border-slate-200 flex flex-col justify-between">
+                      <div className="space-y-3.5">
+                        <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                          <div className="flex items-center gap-2 text-slate-800">
+                            <Coins className="w-4 h-4 text-emerald-600" />
+                            <h4 className="font-bold text-xs uppercase tracking-wide">3. Precios y Rentabilidad</h4>
+                          </div>
+                        </div>
 
-                      <div className="grid grid-cols-4 gap-2">
-                        {imagenesEncontradas.map((img, idx) => (
-                          <button
-                            key={idx}
-                            type="button"
-                            onClick={() => {
-                              setFormImagen(img.url);
-                              setMostrarSelectorImagenes(false);
-                            }}
-                            className={`group relative rounded-lg overflow-hidden border-2 transition ${
-                              formImagen === img.url 
-                                ? 'border-pink-600 ring-2 ring-pink-400 shadow-md scale-105' 
-                                : 'border-slate-200 hover:border-pink-400'
-                            }`}
-                            title={img.nombre}
-                          >
-                            <img 
-                              src={img.url} 
-                              alt={img.nombre} 
-                              className="w-full h-12 object-cover" 
-                            />
-                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-[9px] text-white font-bold p-0.5 text-center leading-tight transition">
-                              Elegir
+                        {/* Selector de Moneda de Entrada */}
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                            Moneda de fijación de precios:
+                          </label>
+                          <div className="grid grid-cols-2 gap-2 p-1 bg-white rounded-xl border border-slate-200">
+                            <button
+                              type="button"
+                              onClick={() => setMonedaPrecios('NIO')}
+                              className={`py-1.5 px-2 rounded-lg font-bold text-xs flex items-center justify-center gap-1 transition cursor-pointer ${
+                                monedaPrecios === 'NIO'
+                                  ? 'bg-emerald-600 text-white shadow-xs'
+                                  : 'text-slate-600 hover:text-slate-900'
+                              }`}
+                            >
+                              <span>C$ Córdobas (NIO)</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setMonedaPrecios('USD')}
+                              className={`py-1.5 px-2 rounded-lg font-bold text-xs flex items-center justify-center gap-1 transition cursor-pointer ${
+                                monedaPrecios === 'USD'
+                                  ? 'bg-blue-600 text-white shadow-xs'
+                                  : 'text-slate-600 hover:text-slate-900'
+                              }`}
+                            >
+                              <span>$ Dólares (USD)</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* PRECIO DE COMPRA (COSTO) */}
+                        <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <label className="font-bold text-xs text-slate-800">
+                              Precio de Compra (Costo Unitario) *
+                            </label>
+                            <span className="text-[10px] text-slate-400 flex items-center gap-0.5">
+                              <ArrowRightLeft className="w-2.5 h-2.5" />
+                              Conversión automática
+                            </span>
+                          </div>
+
+                          {monedaPrecios === 'NIO' ? (
+                            <div className="space-y-1">
+                              <div className="relative">
+                                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 font-black text-emerald-600 text-xs">C$</span>
+                                <input
+                                  type="text"
+                                  inputMode="decimal"
+                                  value={formPrecioCompraNIO}
+                                  onChange={e => handleCompraNIOChange(e.target.value)}
+                                  placeholder="0.00"
+                                  className="w-full pl-8 pr-3 py-1.5 border border-emerald-400 rounded-lg font-black text-slate-900 text-sm focus:ring-2 focus:ring-emerald-400 outline-none"
+                                />
+                              </div>
+                              <div className="flex items-center justify-between px-2 py-0.5 bg-slate-50 rounded text-[11px] text-slate-500">
+                                <span>Equivalente en Dólares ($):</span>
+                                <span className="font-bold text-blue-700 font-mono">
+                                  ${pCompCalc.toFixed(2)} USD
+                                </span>
+                              </div>
                             </div>
-                          </button>
-                        ))}
+                          ) : (
+                            <div className="space-y-1">
+                              <div className="relative">
+                                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 font-black text-blue-600 text-xs">$</span>
+                                <input
+                                  type="text"
+                                  inputMode="decimal"
+                                  value={formPrecioCompraUSD}
+                                  onChange={e => handleCompraUSDChange(e.target.value)}
+                                  placeholder="0.00"
+                                  className="w-full pl-7 pr-3 py-1.5 border border-blue-400 rounded-lg font-black text-slate-900 text-sm focus:ring-2 focus:ring-blue-400 outline-none"
+                                />
+                              </div>
+                              <div className="flex items-center justify-between px-2 py-0.5 bg-slate-50 rounded text-[11px] text-slate-500">
+                                <span>Equivalente en Córdobas (C$):</span>
+                                <span className="font-bold text-emerald-700 font-mono">
+                                  C$ {(pCompCalc * tasaCambio).toFixed(2)} NIO
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* PRECIO DE VENTA AL PÚBLICO (PVP) */}
+                        <div className="p-3 bg-white rounded-xl border border-blue-200 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <label className="font-bold text-xs text-blue-950">
+                              Precio de Venta al Público (PVP) *
+                            </label>
+                            {gananciaUnitUSD > 0 && (
+                              <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+                                +{margenPct.toFixed(1)}% Margen
+                              </span>
+                            )}
+                          </div>
+
+                          {monedaPrecios === 'NIO' ? (
+                            <div className="space-y-1">
+                              <div className="relative">
+                                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 font-black text-emerald-600 text-xs">C$</span>
+                                <input
+                                  type="text"
+                                  inputMode="decimal"
+                                  value={formPrecioVentaNIO}
+                                  onChange={e => handleVentaNIOChange(e.target.value)}
+                                  placeholder="0.00"
+                                  className="w-full pl-8 pr-3 py-1.5 border-2 border-emerald-500 rounded-lg font-black text-emerald-700 text-base focus:ring-2 focus:ring-emerald-400 outline-none shadow-2xs"
+                                />
+                              </div>
+                              <div className="flex items-center justify-between px-2 py-0.5 bg-blue-50 rounded text-[11px] text-slate-600">
+                                <span>Equivalente en Dólares ($):</span>
+                                <span className="font-bold text-blue-700 font-mono">
+                                  ${pVentCalc.toFixed(2)} USD
+                                </span>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="space-y-1">
+                              <div className="relative">
+                                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 font-black text-blue-600 text-xs">$</span>
+                                <input
+                                  type="text"
+                                  inputMode="decimal"
+                                  value={formPrecioVentaUSD}
+                                  onChange={e => handleVentaUSDChange(e.target.value)}
+                                  placeholder="0.00"
+                                  className="w-full pl-7 pr-3 py-1.5 border-2 border-blue-500 rounded-lg font-black text-blue-600 text-base focus:ring-2 focus:ring-blue-400 outline-none shadow-2xs"
+                                />
+                              </div>
+                              <div className="flex items-center justify-between px-2 py-0.5 bg-blue-50 rounded text-[11px] text-slate-600">
+                                <span>Equivalente en Córdobas (C$):</span>
+                                <span className="font-bold text-emerald-700 font-mono">
+                                  C$ {(pVentCalc * tasaCambio).toFixed(2)} NIO
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* TARJETA DE RENTABILIDAD Y RETORNO ESTIMADO */}
+                        <div className="p-3 bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 rounded-xl border border-emerald-200 space-y-2">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-bold text-emerald-900 flex items-center gap-1">
+                              <TrendingUp className="w-3.5 h-3.5 text-emerald-600" />
+                              Ganancia Neta por Unidad:
+                            </span>
+                            <span className="font-black text-emerald-700 font-mono">
+                              +${gananciaUnitUSD.toFixed(2)} / +C$ {gananciaUnitNIO.toFixed(2)}
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2 pt-1 border-t border-emerald-200/60 text-[10px]">
+                            <div>
+                              <span className="text-slate-500 block">Inversión ({stockActual} unids):</span>
+                              <span className="font-bold text-slate-800 font-mono">
+                                ${inversionStockUSD.toFixed(2)} USD
+                              </span>
+                            </div>
+                            <div className="text-right">
+                              <span className="text-slate-500 block">Venta estimada:</span>
+                              <span className="font-bold text-emerald-800 font-mono">
+                                ${ventaEstimadaUSD.toFixed(2)} USD
+                              </span>
+                            </div>
+                          </div>
+                        </div>
                       </div>
+                    </div>
+
+                  </div>
+                </div>
+
+                {/* Barra de Acciones Fija Inferior */}
+                <div className="px-5 py-3.5 sm:px-6 bg-slate-50 border-t border-slate-200 flex flex-col-reverse sm:flex-row items-center justify-between gap-3 shrink-0">
+                  {productoEditar ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setModalAbierto(false);
+                        confirmarEliminar(productoEditar);
+                      }}
+                      className="px-3.5 py-2 text-rose-600 hover:bg-rose-50 rounded-xl font-bold flex items-center gap-1.5 transition text-xs cursor-pointer"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      <span>Eliminar del Catálogo</span>
+                    </button>
+                  ) : (
+                    <div className="text-xs text-slate-500 flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                      <span>Listo para añadir al inventario</span>
                     </div>
                   )}
-                </div>
-              ) : (
-                <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-xl flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center text-amber-600 shrink-0">
-                    <ImageOff className="w-5 h-5" />
+
+                  <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setModalAbierto(false)}
+                      className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 font-semibold hover:bg-white text-xs transition cursor-pointer"
+                    >
+                      Cancelar
+                    </button>
+
+                    {!productoEditar && (
+                      <button
+                        type="button"
+                        onClick={e => guardar(e, true)}
+                        className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs flex items-center gap-1.5 transition shadow-xs cursor-pointer"
+                        title="Guardar y mantener abierto para registrar el siguiente producto"
+                      >
+                        <Plus className="w-3.5 h-3.5 text-blue-400" />
+                        <span>Guardar y Agregar Otro</span>
+                      </button>
+                    )}
+
+                    <button
+                      type="submit"
+                      className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-xs flex items-center gap-1.5 transition shadow-md hover:shadow-lg cursor-pointer"
+                    >
+                      <Check className="w-4 h-4" />
+                      <span>{productoEditar ? 'Guardar Cambios' : 'Guardar Producto'}</span>
+                    </button>
                   </div>
-                  <div className="text-xs text-amber-800">
-                    <span className="font-bold block">Producto en modo sin foto</span>
-                    <span className="text-[11px] text-amber-700">Se guardará sin cargar ninguna imagen para agilizar el sistema.</span>
-                  </div>
                 </div>
-              )}
+              </form>
 
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Categoría</label>
-                <input
-                  type="text"
-                  value={formCategoria}
-                  onChange={e => setFormCategoria(e.target.value)}
-                  placeholder="Ej: Perfumes, Cremas, Bolsos, Toallas Húmedas, Calzado, Ropa, Carteras"
-                  className="w-full p-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-3 gap-2">
-                <div className="col-span-3">
-                  <label className="block font-semibold text-slate-700 mb-1">Existencia (Stock)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={formExistencia}
-                    onChange={e => setFormExistencia(Number(e.target.value) || 0)}
-                    className="w-full p-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-bold text-slate-800"
-                  />
-                </div>
-              </div>
-
-              {/* Indicador de Tasa en Modal */}
-              <div className="flex items-center justify-between p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 text-xs">
-                <div className="flex items-center gap-1.5 text-emerald-800">
-                  <Coins className="w-4 h-4 text-emerald-600" />
-                  <span className="font-bold">Tasa Oficial:</span>
-                  <span className="font-mono font-black">1 $ = C$ {tasaCambio.toFixed(2)}</span>
-                </div>
-                {onAbrirModalTasa && (
-                  <button
-                    type="button"
-                    onClick={onAbrirModalTasa}
-                    className="text-[11px] text-emerald-700 hover:text-emerald-900 underline font-bold"
-                  >
-                    Cambiar Tasa
-                  </button>
-                )}
-              </div>
-
-              {/* SELECTOR DE MONEDA PARA PRECIOS DEL PRODUCTO */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Seleccionar Moneda para Fijar Precios del Producto:
-                </label>
-                <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-xl border border-slate-200">
-                  <button
-                    type="button"
-                    onClick={() => setMonedaPrecios('NIO')}
-                    className={`py-2 px-3 rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition ${
-                      monedaPrecios === 'NIO'
-                        ? 'bg-emerald-600 text-white shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900 bg-white/50'
-                    }`}
-                  >
-                    <span>C$ Córdobas (NIO)</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setMonedaPrecios('USD')}
-                    className={`py-2 px-3 rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition ${
-                      monedaPrecios === 'USD'
-                        ? 'bg-blue-600 text-white shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900 bg-white/50'
-                    }`}
-                  >
-                    <span>$ Dólares (USD)</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* PRECIO DE COMPRA MULTIMONEDA */}
-              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="block font-bold text-slate-800 text-xs">
-                    Precio de Compra (Costo Unitario) *
-                  </label>
-                  <span className="text-[10px] text-slate-500 flex items-center gap-1">
-                    <ArrowRightLeft className="w-3 h-3 text-slate-400" />
-                    Conversión automática
-                  </span>
-                </div>
-
-                {monedaPrecios === 'NIO' ? (
-                  /* ENTRADA PRINCIPAL COMPRA: CÓRDOBAS */
-                  <div className="space-y-1.5">
-                    <div>
-                      <span className="block text-[10px] font-bold text-emerald-800 mb-0.5">
-                        Precio de Compra en Córdobas (C$ NIO) - Principal
-                      </span>
-                      <div className="relative">
-                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 font-black text-emerald-600 text-xs">C$</span>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.50"
-                          value={formPrecioCompraNIO}
-                          onChange={e => handleCompraNIOChange(e.target.value)}
-                          placeholder="0.00"
-                          className="w-full pl-8 pr-2 py-2 bg-white border-2 border-emerald-500 rounded-lg font-black text-slate-900 outline-none focus:ring-2 focus:ring-emerald-400 text-sm shadow-2xs"
-                        />
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs">
-                      <span className="text-[11px] text-slate-500">Equivalente en Dólares ($):</span>
-                      <div className="flex items-center gap-1 font-bold text-slate-800">
-                        <span>$</span>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={formPrecioCompraUSD}
-                          onChange={e => handleCompraUSDChange(e.target.value)}
-                          className="w-20 text-right p-0.5 font-bold outline-none text-blue-700 bg-transparent"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  /* ENTRADA PRINCIPAL COMPRA: DÓLARES */
-                  <div className="space-y-1.5">
-                    <div>
-                      <span className="block text-[10px] font-bold text-blue-800 mb-0.5">
-                        Precio de Compra en Dólares ($ USD) - Principal
-                      </span>
-                      <div className="relative">
-                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 font-black text-blue-600 text-xs">$</span>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={formPrecioCompraUSD}
-                          onChange={e => handleCompraUSDChange(e.target.value)}
-                          placeholder="0.00"
-                          className="w-full pl-7 pr-2 py-2 bg-white border-2 border-blue-500 rounded-lg font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-400 text-sm shadow-2xs"
-                        />
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs">
-                      <span className="text-[11px] text-slate-500">Equivalente en Córdobas (C$):</span>
-                      <div className="flex items-center gap-1 font-bold text-slate-800">
-                        <span>C$</span>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.50"
-                          value={formPrecioCompraNIO}
-                          onChange={e => handleCompraNIOChange(e.target.value)}
-                          className="w-24 text-right p-0.5 font-bold outline-none text-emerald-700 bg-transparent"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* PRECIO DE VENTA MULTIMONEDA */}
-              <div className="p-3 bg-blue-50/60 border border-blue-200 rounded-xl space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="block font-bold text-blue-900 text-xs">
-                    Precio de Venta al Público *
-                  </label>
-                  {parseFloat(formPrecioVentaUSD) > parseFloat(formPrecioCompraUSD) && (
-                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
-                      Margen: {formatoUSD(parseFloat(formPrecioVentaUSD) - (parseFloat(formPrecioCompraUSD) || 0))} / {formatoNIO(parseFloat(formPrecioVentaNIO) - (parseFloat(formPrecioCompraNIO) || 0))}
-                    </span>
-                  )}
-                </div>
-
-                {monedaPrecios === 'NIO' ? (
-                  /* ENTRADA PRINCIPAL VENTA: CÓRDOBAS */
-                  <div className="space-y-1.5">
-                    <div>
-                      <span className="block text-[10px] font-bold text-emerald-800 mb-0.5">
-                        Precio de Venta en Córdobas (C$ NIO) - Principal
-                      </span>
-                      <div className="relative">
-                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 font-black text-emerald-600 text-xs">C$</span>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.50"
-                          value={formPrecioVentaNIO}
-                          onChange={e => handleVentaNIOChange(e.target.value)}
-                          placeholder="0.00"
-                          className="w-full pl-8 pr-2 py-2 bg-white border-2 border-emerald-500 rounded-lg font-black text-emerald-700 outline-none focus:ring-2 focus:ring-emerald-400 text-base shadow-2xs"
-                        />
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between px-2 py-1 bg-white border border-blue-200 rounded-lg text-xs">
-                      <span className="text-[11px] text-slate-500">Equivalente en Dólares ($):</span>
-                      <div className="flex items-center gap-1 font-bold text-slate-800">
-                        <span>$</span>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={formPrecioVentaUSD}
-                          onChange={e => handleVentaUSDChange(e.target.value)}
-                          className="w-20 text-right p-0.5 font-bold outline-none text-blue-700 bg-transparent"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  /* ENTRADA PRINCIPAL VENTA: DÓLARES */
-                  <div className="space-y-1.5">
-                    <div>
-                      <span className="block text-[10px] font-bold text-blue-800 mb-0.5">
-                        Precio de Venta en Dólares ($ USD) - Principal
-                      </span>
-                      <div className="relative">
-                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 font-black text-blue-600 text-xs">$</span>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={formPrecioVentaUSD}
-                          onChange={e => handleVentaUSDChange(e.target.value)}
-                          placeholder="0.00"
-                          className="w-full pl-7 pr-2 py-2 bg-white border-2 border-blue-500 rounded-lg font-black text-blue-600 outline-none focus:ring-2 focus:ring-blue-400 text-base shadow-2xs"
-                        />
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between px-2 py-1 bg-white border border-blue-200 rounded-lg text-xs">
-                      <span className="text-[11px] text-slate-500">Equivalente en Córdobas (C$):</span>
-                      <div className="flex items-center gap-1 font-bold text-slate-800">
-                        <span>C$</span>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.50"
-                          value={formPrecioVentaNIO}
-                          onChange={e => handleVentaNIOChange(e.target.value)}
-                          className="w-24 text-right p-0.5 font-bold outline-none text-emerald-700 bg-transparent"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="pt-4 flex items-center justify-between border-t border-slate-100">
-                {productoEditar ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setModalAbierto(false);
-                      confirmarEliminar(productoEditar);
-                    }}
-                    className="px-3 py-1.5 text-rose-600 hover:bg-rose-50 rounded-lg font-semibold flex items-center gap-1 transition"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    <span>Eliminar Producto</span>
-                  </button>
-                ) : <div />}
-
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setModalAbierto(false)}
-                    className="px-3.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold flex items-center gap-1 shadow-xs"
-                  >
-                    <Check className="w-3.5 h-3.5" />
-                    <span>Guardar</span>
-                  </button>
-                </div>
-              </div>
-            </form>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Modal In-App de Confirmación de Eliminación de Producto */}
       {productoAEliminar && (

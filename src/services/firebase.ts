@@ -223,7 +223,11 @@ export const firestoreSync = {
   async guardarDocumento(coleccion: string, id: string, datos: any): Promise<void> {
     try {
       const docRef = doc(db, coleccion, String(id));
-      await setDoc(docRef, { ...datos, updatedAt: new Date().toISOString() }, { merge: true });
+      // Sanitizar propiedades undefined para evitar errores en Firestore SDK
+      const datosLimpios = Object.fromEntries(
+        Object.entries(datos || {}).filter(([_, v]) => v !== undefined)
+      );
+      await setDoc(docRef, { ...datosLimpios, updatedAt: new Date().toISOString() }, { merge: true });
     } catch {
       // Modo sin conexión silencioso con respaldo en localStorage
     }
