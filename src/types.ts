@@ -48,6 +48,8 @@ export interface VentaRegistro {
   fechaVencimiento?: string;
   numCredito?: string;
   usuario: string;
+  marca?: string;
+  descuento?: number;
   estado: 'COMPLETADA' | 'ANULADA';
   fechaAnulacion?: string;
   motivo?: string;
@@ -81,6 +83,7 @@ export interface Cliente {
   telefono: string;
   direccion: string;
   observaciones: string;
+  cedula?: string;
 }
 
 export interface Proveedor {

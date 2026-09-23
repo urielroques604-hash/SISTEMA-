@@ -1,5 +1,5 @@
 import React from 'react';
-import { Menu, Trash2, FileSpreadsheet, Upload, KeyRound, ImageOff, Image as ImageIcon, Coins } from 'lucide-react';
+import { Menu, Trash2, FileSpreadsheet, Upload, KeyRound, ImageOff, Image as ImageIcon, Coins, UserCheck } from 'lucide-react';
 import { formatoUSD, formatoNIO, aCordobas } from '../utils/currency';
 
 interface TopbarProps {
@@ -15,6 +15,7 @@ interface TopbarProps {
   modoSinImagenes: boolean;
   onToggleModoSinImagenes: () => void;
   onAbrirCambiarPassword: () => void;
+  onCambiarCajero?: () => void;
 }
 
 export const Topbar: React.FC<TopbarProps> = ({
@@ -29,7 +30,8 @@ export const Topbar: React.FC<TopbarProps> = ({
   onAbrirMenuMovil,
   modoSinImagenes,
   onToggleModoSinImagenes,
-  onAbrirCambiarPassword
+  onAbrirCambiarPassword,
+  onCambiarCajero
 }) => {
   const saldoCordobas = aCordobas(saldoCaja, tasaCambio);
 
@@ -147,12 +149,23 @@ export const Topbar: React.FC<TopbarProps> = ({
           <span className="hidden xl:inline ml-1 text-rose-600">Eliminar</span>
         </button>
 
-        {/* Usuario conectado con avatar */}
-        <div className="flex items-center gap-2 border-l border-slate-200 pl-2 sm:pl-3 ml-1">
-          <div className="w-7 h-7 rounded-full bg-pink-100 text-pink-700 border border-pink-200 flex items-center justify-center font-bold text-xs">
-            {usuario.charAt(0).toUpperCase()}
-          </div>
-          <span className="text-xs font-medium text-slate-700 hidden lg:inline">{usuario}</span>
+        {/* Usuario conectado con botón de cambio de personal */}
+        <div className="flex items-center gap-1.5 border-l border-slate-200 pl-2 sm:pl-3 ml-1">
+          <button
+            type="button"
+            onClick={onCambiarCajero}
+            title="Clic para cambiar vendedor o persona que atiende"
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-900 border border-blue-200 text-xs font-bold transition cursor-pointer group"
+          >
+            <div className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center font-black text-[10px] shrink-0">
+              {usuario.charAt(0).toUpperCase()}
+            </div>
+            <div className="text-left hidden lg:block">
+              <span className="text-[9px] text-blue-500 font-semibold block leading-tight">Atendido por:</span>
+              <span className="truncate max-w-[130px] block leading-tight">{usuario}</span>
+            </div>
+            <span className="lg:hidden text-xs font-bold truncate max-w-[90px]">{usuario}</span>
+          </button>
         </div>
       </div>
     </header>

@@ -21,7 +21,13 @@ import {
   Check,
   Mail,
   Send,
-  RefreshCw
+  RefreshCw,
+  Building2,
+  UserCheck,
+  FileCheck,
+  ShieldCheck,
+  MapPin,
+  Clock
 } from 'lucide-react';
 import { VentaRegistro, Cliente } from '../types';
 import { ThermalPrinterService } from '../utils/thermalPrinter';
@@ -65,9 +71,9 @@ export const FacturaModal: React.FC<FacturaModalProps> = ({
     return typeof window !== 'undefined' ? window.innerWidth < 768 : false;
   });
 
-  // Modo de diseño: 'telefono' (Comprobante digital móvil) o 'pos' (Ticket térmico para maquinita)
-  const [modoDiseno, setModoDiseno] = useState<'telefono' | 'pos'>(() => {
-    return typeof window !== 'undefined' && window.innerWidth < 768 ? 'telefono' : 'telefono';
+  // Modo de diseño: 'factura' (Factura Empresarial A4), 'telefono' (Comprobante digital móvil) o 'pos' (Ticket térmico)
+  const [modoDiseno, setModoDiseno] = useState<'factura' | 'telefono' | 'pos'>(() => {
+    return typeof window !== 'undefined' && window.innerWidth < 768 ? 'factura' : 'factura';
   });
 
   const [anchoTicket, setAnchoTicket] = useState<'80mm' | '58mm'>('80mm');
@@ -112,14 +118,14 @@ export const FacturaModal: React.FC<FacturaModalProps> = ({
     const html = generarHtmlFactura(cabecera.numeroVenta, lineas, clienteInfo);
     const res = await enviarCorreoGmail({
       para: emailDestinoGmail.trim(),
-      asunto: `Comprobante de Venta ${cabecera.numeroVenta} - VARIEDADES CS`,
+      asunto: `Factura Comercial ${cabecera.numeroVenta} - VARIEDADES CS`,
       cuerpoHtml: html,
-      cuerpoTexto: `Adjuntamos el comprobante digital de su compra ${cabecera.numeroVenta} en VARIEDADES CS. Total: $${total.toFixed(2)}. ¡Muchas gracias por su preferencia!`
+      cuerpoTexto: `Adjuntamos la factura comercial de su compra ${cabecera.numeroVenta} en VARIEDADES CS emitida por ${cabecera.usuario}. Total: $${total.toFixed(2)} (C$ ${totalNIO.toFixed(2)}). ¡Muchas gracias por su preferencia!`
     });
 
     setEnviandoGmail(false);
     if (res.success) {
-      setNotifGmail({ tipo: 'ok', texto: `¡Comprobante enviado exitosamente a ${emailDestinoGmail}!` });
+      setNotifGmail({ tipo: 'ok', texto: `¡Factura enviada exitosamente a ${emailDestinoGmail}!` });
       setTimeout(() => {
         setModalGmailAbierto(false);
         setNotifGmail(null);
@@ -138,7 +144,7 @@ export const FacturaModal: React.FC<FacturaModalProps> = ({
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Conectar maquinita bluetooth
+  // Conectar maquinita Bluetooth
   const conectarMaquinita = async () => {
     setConectando(true);
     setMensajeMaquinita(null);
@@ -152,9 +158,11 @@ export const FacturaModal: React.FC<FacturaModalProps> = ({
     }
   };
 
-  // Lanzar impresión garantizando la factura entera sin recortes
+  // Lanzar impresión
   const imprimirFactura = () => {
-    const elementoId = modoDiseno === 'telefono' ? 'factura-diseno-telefono' : 'ticket-impresion-termica';
+    const elementoId = modoDiseno === 'factura' 
+      ? 'factura-diseno-empresarial' 
+      : (modoDiseno === 'telefono' ? 'factura-diseno-telefono' : 'ticket-impresion-termica');
     const ancho = modoDiseno === 'pos' ? anchoTicket : 'auto';
     ThermalPrinterService.imprimirVentanaTermica(elementoId, ancho);
   };
@@ -163,8 +171,10 @@ export const FacturaModal: React.FC<FacturaModalProps> = ({
   const handleCompartirComoImagen = async () => {
     setGenerandoImagen(true);
     setNotifImagen(null);
-    const elementoId = modoDiseno === 'telefono' ? 'factura-diseno-telefono' : 'ticket-impresion-termica';
-    const sufijo = modoDiseno === 'telefono' ? 'Digital_Movil' : 'Ticket_POS';
+    const elementoId = modoDiseno === 'factura' 
+      ? 'factura-diseno-empresarial' 
+      : (modoDiseno === 'telefono' ? 'factura-diseno-telefono' : 'ticket-impresion-termica');
+    const sufijo = modoDiseno === 'factura' ? 'Factura_Empresarial' : (modoDiseno === 'telefono' ? 'Digital_Movil' : 'Ticket_POS');
     const nombreArchivo = `Factura_${cabecera.numeroVenta}_${sufijo}_VariedadesCS.png`;
     
     const res = await compartirODescargarImagen(
@@ -196,25 +206,25 @@ export const FacturaModal: React.FC<FacturaModalProps> = ({
       textoEfectivo = `\n💵 *Efectivo Recibido:* $${cabecera.efectivoRecibido.toFixed(2)} (C$ ${recNIO})\n🪙 *Cambio / Vuelto:* $${(cabecera.cambio || 0).toFixed(2)} (C$ ${camNIO})`;
     }
 
-    return `🌸 *VARIEDADES CS - DE TODO UN POCO* 🌸
+    return `🌸 *VARIEDADES CS - FACTURA COMERCIAL OFICIAL* 🌸
 ================================
-📄 *COMPROBANTE OFICIAL DE COMPRA*
-🔖 *Factura N°:* ${cabecera.numeroVenta}
-📅 *Fecha:* ${cabecera.fecha}
+📄 *FACTURA N°:* ${cabecera.numeroVenta}
+📅 *Fecha & Hora:* ${cabecera.fecha}
+🧑‍💼 *ATENDIDO POR:* ${cabecera.usuario}
 👤 *Cliente:* ${cabecera.cliente || 'Consumidor Final'}
-🧑‍💼 *Atendido por:* ${cabecera.usuario}
 💳 *Forma de Pago:* ${cabecera.formaPago}
-💵 *Tasa Oficial:* 1 $ USD = C$ ${tasaVenta.toFixed(2)} NIO
+💵 *Tasa de Cambio Oficial:* 1 $ USD = C$ ${tasaVenta.toFixed(2)} NIO
 ${cabecera.numCredito ? `📝 *N° Crédito:* ${cabecera.numCredito}\n` : ''}================================
-🛍️ *DETALLE DE COMPRA:*
+🛍️ *DETALLE DE ARTÍCULOS:*
 ${lineasTexto}
 ================================
 📦 *Total Artículos:* ${totalArticulos} unidad(es)
 💰 *TOTAL A PAGAR:* *$${total.toFixed(2)} USD* (C$ ${totalNIO.toFixed(2)} Córdobas)${textoEfectivo}
 ================================
-✨ ¡Muchas gracias por su preferencia! ✨
-🚫 *POLÍTICA:* Por higiene, sellado y autenticidad en perfumería, cosméticos y artículos de uso personal, NO SE ACEPTAN CAMBIOS NI DEVOLUCIONES de producto una vez retirado.
-📍 *VARIEDADES CS* • Perfumes, Cremas, Bolsos, Calzado, Ropa y Variedades.`;
+🧑‍💼 *Vendedor Responsable:* ${cabecera.usuario}
+✨ ¡Gracias por confiar en VARIEDADES CS!
+🚫 *POLÍTICA:* Por higiene y autenticidad en perfumería, cosméticos y artículos personales, no se aceptan devoluciones de producto una vez retirado.
+📍 *VARIEDADES CS* • Managua, Nicaragua • Perfumes, Bolsos, Cosméticos, Calzado y Variedades.`;
   };
 
   // Copiar el texto completo de la factura
@@ -226,7 +236,7 @@ ${lineasTexto}
     });
   };
 
-  // Compartir directamente por WhatsApp (si el cliente tiene teléfono, abre su chat)
+  // Compartir directamente por WhatsApp
   const compartirWhatsAppDirecto = () => {
     const texto = generarTextoWhatsApp();
     const encoded = encodeURIComponent(texto);
@@ -244,14 +254,14 @@ ${lineasTexto}
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center z-50 p-0 sm:p-4 overflow-y-auto">
-      <div className="bg-slate-50 w-full sm:max-w-2xl sm:rounded-2xl border-0 sm:border border-slate-200 overflow-hidden flex flex-col min-h-screen sm:min-h-0 sm:max-h-[94vh] shadow-2xl">
+    <div className="fixed inset-0 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center z-50 p-0 sm:p-4 overflow-y-auto">
+      <div className="bg-slate-50 w-full sm:max-w-4xl sm:rounded-3xl border-0 sm:border border-slate-200 overflow-hidden flex flex-col min-h-screen sm:min-h-0 sm:max-h-[96vh] shadow-2xl">
         
         {/* Barra superior de encabezado y selector de diseño */}
         <div className="px-4 py-3 bg-white border-b border-slate-200 shrink-0">
           <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full overflow-hidden border border-pink-300 bg-pink-50 flex items-center justify-center shrink-0 shadow-xs">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl overflow-hidden border border-pink-300 bg-pink-50 flex items-center justify-center shrink-0 shadow-xs">
                 <img 
                   src="/logo.jpg" 
                   alt="Logo" 
@@ -260,16 +270,20 @@ ${lineasTexto}
                 />
               </div>
               <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-xs sm:text-sm font-extrabold text-slate-900 tracking-tight">
-                    Factura de Venta
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-xs sm:text-sm font-black text-slate-900 tracking-tight">
+                    Factura Comercial de Venta
                   </h3>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 font-mono">
+                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 font-mono">
                     {cabecera.numeroVenta}
+                  </span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                    <UserCheck className="w-3 h-3 text-emerald-600" />
+                    <span>Atendido por: <strong>{cabecera.usuario}</strong></span>
                   </span>
                 </div>
                 <p className="text-[10px] text-slate-500">
-                  {cabecera.fecha} • {cabecera.usuario}
+                  {cabecera.fecha} • Venta Corporativa y al Detalle
                 </p>
               </div>
             </div>
@@ -283,43 +297,55 @@ ${lineasTexto}
             </button>
           </div>
 
-          {/* Pestañas de Selección de Diseño: Teléfono Móvil vs Ticket POS */}
-          <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
-            <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-bold w-full sm:w-auto">
+          {/* Pestañas de Selección de Diseño: Factura Empresarial, Digital Móvil, Ticket POS */}
+          <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-bold w-full sm:w-auto overflow-x-auto">
+              {/* Opción 1: Factura Empresarial A4 / Carta */}
+              <button
+                onClick={() => setModoDiseno('factura')}
+                className={`px-3 py-1.5 rounded-lg flex items-center justify-center gap-1.5 transition shrink-0 ${
+                  modoDiseno === 'factura'
+                    ? 'bg-white text-slate-900 shadow-xs font-black border border-slate-200/80'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Building2 className="w-3.5 h-3.5 text-indigo-600" />
+                <span>Factura Empresarial</span>
+                <span className="text-[9px] px-1 py-0.2 bg-indigo-100 text-indigo-800 rounded font-bold ml-0.5">
+                  100% Empresa
+                </span>
+              </button>
+
+              {/* Opción 2: Teléfono Móvil */}
               <button
                 onClick={() => setModoDiseno('telefono')}
-                className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-lg flex items-center justify-center gap-1.5 transition ${
+                className={`px-3 py-1.5 rounded-lg flex items-center justify-center gap-1.5 transition shrink-0 ${
                   modoDiseno === 'telefono'
-                    ? 'bg-white text-slate-900 shadow-xs font-extrabold border border-slate-200/80'
+                    ? 'bg-white text-slate-900 shadow-xs font-black border border-slate-200/80'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 <Smartphone className="w-3.5 h-3.5 text-pink-600" />
-                <span>Diseño Teléfono</span>
-                <span className="text-[9px] px-1 py-0.2 bg-pink-100 text-pink-800 rounded font-semibold ml-0.5">
-                  Digital
-                </span>
+                <span>Digital Móvil</span>
               </button>
 
+              {/* Opción 3: Ticket POS */}
               <button
                 onClick={() => setModoDiseno('pos')}
-                className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-lg flex items-center justify-center gap-1.5 transition ${
+                className={`px-3 py-1.5 rounded-lg flex items-center justify-center gap-1.5 transition shrink-0 ${
                   modoDiseno === 'pos'
-                    ? 'bg-white text-slate-900 shadow-xs font-extrabold border border-slate-200/80'
+                    ? 'bg-white text-slate-900 shadow-xs font-black border border-slate-200/80'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 <Receipt className="w-3.5 h-3.5 text-blue-600" />
-                <span>Ticket POS</span>
-                <span className="text-[9px] px-1 py-0.2 bg-slate-200 text-slate-700 rounded font-semibold ml-0.5">
-                  Papel
-                </span>
+                <span>Ticket POS (Térmico)</span>
               </button>
             </div>
 
             {/* Opciones cuando está en Ticket POS */}
             {modoDiseno === 'pos' && (
-              <div className="hidden sm:flex items-center gap-2">
+              <div className="flex items-center gap-2">
                 <select
                   value={anchoTicket}
                   onChange={e => setAnchoTicket(e.target.value as '80mm' | '58mm')}
@@ -363,11 +389,279 @@ ${lineasTexto}
           </div>
         )}
 
-        {/* CONTENEDOR PRINCIPAL DE VISUALIZACIÓN COMPLETA (ENTERA) */}
+        {/* CONTENEDOR PRINCIPAL DE VISUALIZACIÓN */}
         <div className="flex-1 overflow-y-auto p-3 sm:p-6 bg-slate-100 flex justify-center items-start">
           
           {/* ========================================================= */}
-          {/* 1. DISEÑO DE TELÉFONO (COMPROBANTE DIGITAL MÓVIL MODERNO) */}
+          {/* 1. FACTURA COMERCIAL EMPRESARIAL (100% PROFESIONAL A4)   */}
+          {/* ========================================================= */}
+          {modoDiseno === 'factura' && (
+            <div 
+              id="factura-diseno-empresarial"
+              className="w-full max-w-2xl bg-white rounded-2xl shadow-md border border-slate-300 text-slate-800 p-6 sm:p-8 font-sans transition-all my-2"
+            >
+              {/* Encabezado Corporativo Formal */}
+              <div className="flex flex-col sm:flex-row justify-between items-start gap-4 pb-6 border-b-2 border-slate-900">
+                <div className="flex items-start gap-3.5">
+                  <div className="w-16 h-16 rounded-2xl overflow-hidden border border-slate-200 bg-pink-50 p-1 shrink-0 shadow-xs">
+                    <img 
+                      src="/logo.jpg" 
+                      alt="VARIEDADES CS" 
+                      className="w-full h-full object-cover rounded-xl"
+                      onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+                    />
+                  </div>
+                  <div>
+                    <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight leading-tight">
+                      VARIEDADES CS
+                    </h1>
+                    <p className="text-xs font-bold text-pink-700 uppercase tracking-wide">
+                      Comercializadora y Distribuidora de Variedades
+                    </p>
+                    <p className="text-[11px] text-slate-500 mt-1 leading-snug">
+                      Perfumería Fina • Cosméticos • Calzado • Ropa • Accesorios
+                    </p>
+                    <div className="text-[10px] text-slate-600 mt-1 space-y-0.5">
+                      <p className="flex items-center gap-1">
+                        <MapPin className="w-3 h-3 text-slate-400" />
+                        <span>Managua, Nicaragua</span>
+                      </p>
+                      <p className="flex items-center gap-1">
+                        <Phone className="w-3 h-3 text-slate-400" />
+                        <span>WhatsApp / Ventas: +505 8888-8888 • Email: variedadescs.online@gmail.com</span>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Cuadro Oficial de Factura */}
+                <div className="bg-slate-900 text-white rounded-2xl p-4 min-w-[210px] border border-slate-800 shadow-sm shrink-0">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block text-center">
+                    COMPROBANTE FISCAL
+                  </span>
+                  <h3 className="text-center font-black text-base text-white tracking-wide mt-0.5">
+                    FACTURA DE VENTA
+                  </h3>
+                  <div className="text-center text-rose-400 font-mono font-black text-lg mt-1 tracking-wider">
+                    {cabecera.numeroVenta}
+                  </div>
+                  <div className="border-t border-slate-800 mt-2 pt-2 text-[10px] text-slate-300 space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Fecha:</span>
+                      <span className="font-bold">{cabecera.fecha}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Condición:</span>
+                      <span className="font-extrabold text-amber-300 uppercase">{cabecera.formaPago}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Ficha Corporativa: Datos del Cliente y Atendido Por */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-5 border-b border-slate-200 text-xs">
+                {/* Columna Cliente */}
+                <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-1">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">
+                    DATOS DEL CLIENTE / FACTURAR A:
+                  </span>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500 font-semibold">Cliente:</span>
+                    <span className="font-black text-slate-900">{cabecera.cliente || 'Consumidor Final'}</span>
+                  </div>
+                  {clienteInfo?.telefono && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-500 font-semibold">Teléfono:</span>
+                      <span className="font-medium text-slate-800">{clienteInfo.telefono}</span>
+                    </div>
+                  )}
+                  {clienteInfo?.cedula && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-500 font-semibold">Cédula / RUC:</span>
+                      <span className="font-medium text-slate-800">{clienteInfo.cedula}</span>
+                    </div>
+                  )}
+                  {clienteInfo?.direccion && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-500 font-semibold">Dirección:</span>
+                      <span className="font-medium text-slate-800 text-right truncate max-w-[160px]">{clienteInfo.direccion}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Columna Datos del Personal & Operación */}
+                <div className="bg-blue-50/70 p-3.5 rounded-xl border border-blue-200 space-y-1">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-blue-800 block mb-1">
+                    PERSONAL RESPONSABLE & ATENCIÓN:
+                  </span>
+                  
+                  {/* ATENDIDO POR DESTACADO */}
+                  <div className="flex justify-between items-center bg-white p-2 rounded-lg border border-blue-200 shadow-2xs">
+                    <span className="text-blue-900 font-extrabold flex items-center gap-1.5">
+                      <UserCheck className="w-4 h-4 text-blue-600" />
+                      Atendido por:
+                    </span>
+                    <span className="font-black text-blue-950 text-sm tracking-wide">
+                      {cabecera.usuario}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between pt-1">
+                    <span className="text-slate-600 font-semibold">Puesto:</span>
+                    <span className="font-bold text-slate-800">Asesor de Ventas & Caja</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-600 font-semibold">Tasa Oficial:</span>
+                    <span className="font-bold text-slate-800">1 USD = C$ {tasaVenta.toFixed(2)} NIO</span>
+                  </div>
+                  {cabecera.numCredito && (
+                    <div className="flex justify-between text-rose-700 font-bold">
+                      <span>N° Crédito:</span>
+                      <span>{cabecera.numCredito}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Tabla Empresarial de Productos */}
+              <div className="py-4">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-slate-900 text-white uppercase text-[10px] tracking-wider">
+                      <th className="py-2.5 px-3 rounded-l-lg">#</th>
+                      <th className="py-2.5 px-3">Código</th>
+                      <th className="py-2.5 px-3">Descripción del Producto</th>
+                      <th className="py-2.5 px-2 text-center">Cant.</th>
+                      <th className="py-2.5 px-3 text-right">P. Unit ($)</th>
+                      <th className="py-2.5 px-3 text-right">Total ($)</th>
+                      <th className="py-2.5 px-3 rounded-r-lg text-right">Total (C$)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {lineas.map((it, idx) => {
+                      const totalItemCordobas = it.total * tasaVenta;
+                      const unitItemCordobas = it.precioUnitario * tasaVenta;
+                      return (
+                        <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'}>
+                          <td className="py-2.5 px-3 text-slate-400 font-mono text-[11px]">{idx + 1}</td>
+                          <td className="py-2.5 px-3 font-mono font-bold text-slate-700 text-[11px]">{it.codigo}</td>
+                          <td className="py-2.5 px-3">
+                            <span className="font-bold text-slate-900 block leading-tight">{it.producto}</span>
+                            {it.marca && <span className="text-[10px] text-slate-500 font-medium">Marca: {it.marca}</span>}
+                          </td>
+                          <td className="py-2.5 px-2 text-center font-extrabold text-slate-900">{it.cantidad}</td>
+                          <td className="py-2.5 px-3 text-right font-medium text-slate-700">
+                            ${it.precioUnitario.toFixed(2)}
+                            <span className="text-[10px] text-slate-400 block font-normal">C$ {unitItemCordobas.toFixed(2)}</span>
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-black text-slate-900">
+                            ${it.total.toFixed(2)}
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-extrabold text-slate-800">
+                            C$ {totalItemCordobas.toFixed(2)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Resumen Financiero y Totales Desglosados */}
+              <div className="pt-3 pb-6 border-t-2 border-slate-200 flex flex-col sm:flex-row justify-between items-start gap-4">
+                {/* Notas Comerciales */}
+                <div className="space-y-1.5 text-[11px] text-slate-600 max-w-sm">
+                  <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                    <p className="font-bold text-slate-800 flex items-center gap-1 mb-0.5">
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                      Garantía & Política de Empresa:
+                    </p>
+                    <p className="text-[10px] leading-relaxed text-slate-500">
+                      Mercadería revisada a entera satisfacción. Por higiene y autenticidad en perfumería, cosméticos y artículos personales, no se admiten devoluciones una vez retirado el producto.
+                    </p>
+                  </div>
+                  <p className="text-[10px] text-slate-400">
+                    Total de artículos entregados: <strong>{totalArticulos} unidades</strong>.
+                  </p>
+                </div>
+
+                {/* Caja de Totales */}
+                <div className="w-full sm:w-72 bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-1.5 text-xs">
+                  <div className="flex justify-between text-slate-600">
+                    <span>Subtotal:</span>
+                    <span className="font-bold text-slate-800">${total.toFixed(2)} USD</span>
+                  </div>
+                  {cabecera.descuento !== undefined && cabecera.descuento > 0 && (
+                    <div className="flex justify-between text-emerald-700 font-semibold">
+                      <span>Descuento Comercial:</span>
+                      <span>-${cabecera.descuento.toFixed(2)} USD</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-slate-400 text-[10px]">
+                    <span>Impuestos (Exento):</span>
+                    <span>$0.00</span>
+                  </div>
+
+                  <div className="border-t border-slate-300 pt-2 mt-2">
+                    <div className="flex justify-between items-baseline">
+                      <span className="font-black text-slate-900 text-sm">TOTAL USD:</span>
+                      <span className="font-black text-xl text-slate-900 tracking-tight">
+                        ${total.toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-baseline mt-0.5">
+                      <span className="font-extrabold text-blue-900 text-xs">TOTAL CÓRDOBAS:</span>
+                      <span className="font-black text-base text-blue-900">
+                        C$ {totalNIO.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {cabecera.efectivoRecibido !== undefined && cabecera.efectivoRecibido > 0 && (
+                    <div className="border-t border-dashed border-slate-300 pt-2 text-[11px] space-y-0.5 text-slate-700">
+                      <div className="flex justify-between">
+                        <span>Efectivo Recibido:</span>
+                        <span className="font-bold">${cabecera.efectivoRecibido.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between font-extrabold text-emerald-800">
+                        <span>Cambio / Vuelto:</span>
+                        <span>${(cabecera.cambio || 0).toFixed(2)}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Firmas de Responsabilidad Corporativa */}
+              <div className="grid grid-cols-2 gap-8 pt-8 border-t border-dashed border-slate-300 text-center text-xs">
+                <div>
+                  <div className="border-b border-slate-400 pb-1 mx-4"></div>
+                  <p className="font-black text-slate-900 mt-1.5 text-xs uppercase">
+                    {cabecera.usuario}
+                  </p>
+                  <p className="text-[10px] text-slate-500 font-semibold">
+                    Atendido por / Firma & Sello de Entrega
+                  </p>
+                </div>
+                <div>
+                  <div className="border-b border-slate-400 pb-1 mx-4"></div>
+                  <p className="font-black text-slate-900 mt-1.5 text-xs uppercase">
+                    {cabecera.cliente || 'Consumidor Final'}
+                  </p>
+                  <p className="text-[10px] text-slate-500 font-semibold">
+                    Recibido Conforme / Cliente
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-6 text-center text-[10px] text-slate-400">
+                VARIEDADES CS • Sistema Empresarial de Ventas e Inventario • Documento emitido electrónicamente
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================= */}
+          {/* 2. DISEÑO DE TELÉFONO (COMPROBANTE DIGITAL MÓVIL MODERNO) */}
           {/* ========================================================= */}
           {modoDiseno === 'telefono' && (
             <div 
@@ -423,7 +717,7 @@ ${lineasTexto}
                 <div className="text-[10px] text-slate-400 mt-1">
                   Tasa Oficial: 1 $ USD = C$ {tasaVenta.toFixed(2)}
                 </div>
-                <div className="mt-2 flex items-center justify-center gap-2 text-xs">
+                <div className="mt-2 flex items-center justify-center gap-2 text-xs flex-wrap">
                   <span className="px-2 py-0.5 bg-slate-800 rounded-md text-pink-300 font-semibold border border-slate-700">
                     Forma: {cabecera.formaPago}
                   </span>
@@ -450,7 +744,7 @@ ${lineasTexto}
                 <div className="flex justify-between items-center">
                   <span className="text-slate-500 font-medium flex items-center gap-1">
                     <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                    Fecha y Hora:
+                    Fecha:
                   </span>
                   <span className="font-semibold text-slate-800">{cabecera.fecha}</span>
                 </div>
@@ -475,9 +769,13 @@ ${lineasTexto}
                   </div>
                 )}
 
-                <div className="flex justify-between items-center text-[11px]">
-                  <span className="text-slate-500 font-medium">Cajero(a):</span>
-                  <span className="text-slate-700 font-semibold">{cabecera.usuario}</span>
+                {/* Atendido por destacado */}
+                <div className="flex justify-between items-center p-2 rounded-xl bg-blue-50 border border-blue-200 text-[11px]">
+                  <span className="text-blue-900 font-bold flex items-center gap-1">
+                    <UserCheck className="w-3.5 h-3.5 text-blue-600" />
+                    Atendido por:
+                  </span>
+                  <span className="text-blue-950 font-black">{cabecera.usuario}</span>
                 </div>
 
                 {cabecera.numCredito && (
@@ -488,7 +786,7 @@ ${lineasTexto}
                 )}
               </div>
 
-              {/* Lista Desglosada de Productos (Diseño Móvil Cómodo y Legible) */}
+              {/* Lista Desglosada de Productos */}
               <div className="p-4 space-y-2">
                 <div className="flex items-center justify-between pb-1.5 border-b border-slate-200 text-slate-500 text-[11px] font-bold uppercase tracking-wider">
                   <span>Productos Comprados ({lineas.length})</span>
@@ -516,87 +814,54 @@ ${lineasTexto}
                         <span className="font-black text-xs text-slate-900 block">
                           ${it.total.toFixed(2)}
                         </span>
+                        <span className="text-[10px] text-slate-400">
+                          C$ {(it.total * tasaVenta).toFixed(2)}
+                        </span>
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
 
-              {/* Resumen Financiero Completo */}
-              <div className="p-4 bg-slate-50 border-t border-dashed border-slate-300 space-y-1.5 text-xs">
-                <div className="flex justify-between text-slate-600">
-                  <span>Subtotal:</span>
-                  <span className="font-medium">${total.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-slate-600">
-                  <span>Prendas / Artículos:</span>
-                  <span className="font-bold">{totalArticulos} unidades</span>
-                </div>
-                <div className="flex justify-between text-sm font-black text-slate-900 pt-1.5 border-t border-slate-200">
-                  <span>TOTAL A PAGAR:</span>
-                  <span className="text-blue-600 text-base">${total.toFixed(2)}</span>
-                </div>
-
-                {cabecera.efectivoRecibido !== undefined && cabecera.efectivoRecibido > 0 && (
-                  <div className="pt-2 mt-1 border-t border-slate-200 grid grid-cols-2 gap-2 text-center text-xs">
-                    <div className="p-2 bg-white rounded-lg border border-slate-200">
-                      <span className="text-[10px] text-slate-500 block">Efectivo Recibido</span>
-                      <span className="font-bold text-slate-800">${cabecera.efectivoRecibido.toFixed(2)}</span>
-                    </div>
-                    <div className="p-2 bg-emerald-50 rounded-lg border border-emerald-200">
-                      <span className="text-[10px] text-emerald-700 font-bold block">Cambio / Vuelto</span>
-                      <span className="font-black text-emerald-800 text-sm">
-                        ${(cabecera.cambio || 0).toFixed(2)}
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Pie de Comprobante Móvil con Políticas de Perfumería */}
-              <div className="p-4 bg-white border-t border-slate-100 text-center space-y-1.5">
-                <p className="font-bold text-xs text-slate-800">
-                  ¡Gracias por su compra en VARIEDADES CS! ✨
+              {/* Pie con Políticas */}
+              <div className="p-4 bg-slate-50 border-t border-slate-200 text-center space-y-1.5">
+                <p className="text-[11px] font-bold text-slate-700">
+                  ¡Gracias por su compra en VARIEDADES CS!
                 </p>
-                <div className="p-2 bg-rose-50 border border-rose-200 rounded-xl text-center">
-                  <p className="text-[10px] font-black text-rose-700 uppercase tracking-wide">
-                    POLÍTICA: NO SE ACEPTAN CAMBIOS NI DEVOLUCIONES
-                  </p>
-                  <p className="text-[9px] text-slate-600 mt-0.5">
-                    Por higiene, sellado y autenticidad en perfumería, cosméticos y artículos personales, no se realizan cambios ni devoluciones una vez retirado el producto.
-                  </p>
+                <div className="p-2 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-[10px] font-bold leading-tight">
+                  🚫 NOTA IMPORTANTE: Por higiene, sellado y autenticidad en cosméticos y artículos de cuidado personal, NO SE ACEPTAN CAMBIOS NI DEVOLUCIONES una vez entregado el producto.
                 </div>
-                <div className="pt-1 text-[9px] font-mono text-slate-400 tracking-wider uppercase">
-                  ID DIGITAL: {cabecera.numeroVenta}-{Math.abs(total * 100).toFixed(0)}
-                </div>
+                <p className="text-[9px] text-slate-400">
+                  Atendido por: {cabecera.usuario} • Comprobante oficial de venta
+                </p>
               </div>
             </div>
           )}
 
           {/* ========================================================= */}
-          {/* 2. DISEÑO TICKET TÉRMICO POS (PAPEL 80mm / 58mm MAQUINITA) */}
+          {/* 3. TICKET TÉRMICO PARA IMPRESORA MINI POS (80mm / 58mm)   */}
           {/* ========================================================= */}
           {modoDiseno === 'pos' && (
-            <div
+            <div 
               id="ticket-impresion-termica"
-              style={{ width: anchoTicket === '58mm' ? '260px' : '330px' }}
-              className="bg-white p-4 sm:p-5 rounded-lg shadow-sm border border-slate-300 text-slate-900 font-mono text-xs transition-all my-auto"
+              className={`bg-white text-slate-950 font-mono shadow-sm border border-slate-300 p-4 leading-tight transition-all my-auto mx-auto ${
+                anchoTicket === '58mm' ? 'w-[280px] text-[10px]' : 'w-[360px] text-xs'
+              }`}
             >
-              {/* Logo y Encabezado Térmico */}
-              <div className="text-center pb-2">
-                <img
-                  src="/logo.jpg"
-                  alt="Logo VARIEDADES CS"
-                  className="w-20 h-20 mx-auto object-contain rounded-lg mb-2 shadow-xs"
-                  onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
-                />
-                <h3 className="font-extrabold text-sm sm:text-base tracking-wider text-slate-900 uppercase">
+              {/* Encabezado Térmico */}
+              <div className="text-center space-y-1">
+                <div className="w-12 h-12 rounded-full overflow-hidden mx-auto border border-slate-400">
+                  <img 
+                    src="/logo.jpg" 
+                    alt="Logo" 
+                    className="w-full h-full object-cover"
+                    onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+                  />
+                </div>
+                <h2 className="font-extrabold text-sm tracking-wide">
                   VARIEDADES CS
-                </h3>
-                <p className="text-[10px] text-slate-700 font-sans font-bold mt-0.5">
-                  Perfumería, Bolsos, Calzado & Ropa
-                </p>
-                <p className="text-[9px] text-slate-500">
+                </h2>
+                <p className="text-[10px] font-bold text-slate-600">
                   De Todo Un Poco • Venta Oficial
                 </p>
               </div>
@@ -619,13 +884,17 @@ ${lineasTexto}
                     <span className="font-semibold text-slate-800">{cabecera.cliente}</span>
                   </div>
                 )}
-                <div className="flex justify-between">
-                  <span className="text-slate-600">Atendido por:</span>
+                <div className="flex justify-between font-bold text-slate-900 bg-slate-100 p-1 rounded">
+                  <span>Atendido por:</span>
                   <span>{cabecera.usuario}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-600">Forma Pago:</span>
                   <span className="font-bold">{cabecera.formaPago}</span>
+                </div>
+                <div className="flex justify-between text-[10px] text-slate-500">
+                  <span>Tasa Oficial:</span>
+                  <span>1 USD = C$ {tasaVenta.toFixed(2)}</span>
                 </div>
                 {cabecera.numCredito && (
                   <div className="flex justify-between text-blue-600 font-bold">
@@ -649,20 +918,20 @@ ${lineasTexto}
                   <span>Total</span>
                 </div>
 
-                <div className="divide-y divide-slate-100">
+                <div className="divide-y divide-dotted divide-slate-300 py-1">
                   {lineas.map((it, idx) => (
-                    <div key={idx} className="py-1.5">
-                      <div className="flex justify-between font-medium">
-                        <span className="text-slate-900 leading-snug">
-                          <strong className="text-blue-600 mr-1">{it.cantidad}x</strong>
-                          {it.producto}
-                        </span>
-                        <span className="font-bold text-slate-900 ml-2">
-                          ${it.total.toFixed(2)}
-                        </span>
+                    <div key={idx} className="py-1 flex justify-between items-start gap-1">
+                      <div className="flex-1 min-w-0 pr-1">
+                        <p className="font-bold leading-tight truncate">{it.producto}</p>
+                        <p className="text-[10px] text-slate-500 font-mono">
+                          {it.cantidad}x @ ${it.precioUnitario.toFixed(2)} (C$ {(it.precioUnitario * tasaVenta).toFixed(2)})
+                        </p>
                       </div>
-                      <div className="text-[10px] text-slate-400 pl-4">
-                        (${it.precioUnitario.toFixed(2)} c/u) • {it.codigo}
+                      <div className="text-right shrink-0">
+                        <span className="font-bold">${it.total.toFixed(2)}</span>
+                        <span className="text-[9px] text-slate-500 block">
+                          C$ {(it.total * tasaVenta).toFixed(2)}
+                        </span>
                       </div>
                     </div>
                   ))}
@@ -671,37 +940,27 @@ ${lineasTexto}
 
               <div className="border-t border-dashed border-slate-400 my-2"></div>
 
-              {/* Totales Térmicos */}
+              {/* Totales Térmico */}
               <div className="space-y-1 text-xs">
                 <div className="flex justify-between text-slate-600 text-[11px]">
-                  <span>Artículos totales:</span>
-                  <span className="font-bold">{totalArticulos} unid.</span>
-                </div>
-                <div className="flex justify-between text-slate-600 text-[11px]">
-                  <span>Subtotal:</span>
-                  <span>${total.toFixed(2)} (C$ {totalNIO.toFixed(2)})</span>
-                </div>
-                <div className="flex justify-between text-sm sm:text-base font-black text-slate-900 border-t border-slate-400 pt-1">
-                  <span>TOTAL A PAGAR:</span>
-                  <div className="text-right">
-                    <span className="text-blue-600 block">${total.toFixed(2)}</span>
-                    <span className="text-emerald-700 text-xs block font-bold">C$ {totalNIO.toFixed(2)}</span>
-                  </div>
-                </div>
-                <div className="text-right text-[9px] text-slate-500 font-mono">
-                  Tasa: 1 $ USD = C$ {tasaVenta.toFixed(2)} NIO
+                  <span>Artículos:</span>
+                  <span>{totalArticulos} unid.</span>
                 </div>
 
-                {cabecera.formaPago === 'Crédito' && (
-                  <div className="mt-2 p-2 bg-rose-50 border-2 border-rose-500 rounded-lg text-rose-950 font-black text-center text-xs uppercase tracking-wide">
-                    🔴 CRÉDITO: MONTO A DEBER: ${total.toFixed(2)}
-                    {cabecera.fechaVencimiento && (
-                      <div className="text-[10px] font-semibold text-slate-600 mt-0.5 normal-case">
-                        Fecha límite de pago: {cabecera.fechaVencimiento}
-                      </div>
-                    )}
-                  </div>
-                )}
+                <div className="flex justify-between text-slate-600 text-[11px]">
+                  <span>Subtotal:</span>
+                  <span>${total.toFixed(2)} USD</span>
+                </div>
+
+                <div className="flex justify-between font-black text-base border-t border-slate-400 pt-1 mt-1">
+                  <span>TOTAL A PAGAR:</span>
+                  <span>${total.toFixed(2)} USD</span>
+                </div>
+
+                <div className="flex justify-between font-bold text-xs text-slate-800">
+                  <span>TOTAL CÓRDOBAS:</span>
+                  <span>C$ {totalNIO.toFixed(2)} NIO</span>
+                </div>
 
                 {cabecera.efectivoRecibido !== undefined && cabecera.efectivoRecibido > 0 && (
                   <div className="pt-1.5 border-t border-dashed border-slate-300 text-[11px] space-y-0.5 text-slate-700">
@@ -724,6 +983,9 @@ ${lineasTexto}
                 <p className="font-bold text-slate-900 text-[11px]">
                   ¡Gracias por su compra en VARIEDADES CS!
                 </p>
+                <p className="text-[9px] text-slate-700 font-semibold">
+                  Atendido por: {cabecera.usuario}
+                </p>
                 <p className="text-[9px] text-rose-700 font-extrabold uppercase">
                   *** NO SE ACEPTAN CAMBIOS NI DEVOLUCIONES ***
                 </p>
@@ -737,7 +999,7 @@ ${lineasTexto}
         </div>
 
         {/* ========================================================= */}
-        {/* BARRA DE ACCIONES INFERIOR (OPTIMIZADA PARA TELÉFONO Y PC) */}
+        {/* BARRA DE ACCIONES INFERIOR (COMPLETA Y PROFESIONAL)        */}
         {/* ========================================================= */}
         <div className="p-3 sm:px-5 sm:py-3.5 bg-white border-t border-slate-200 shrink-0">
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
@@ -753,7 +1015,7 @@ ${lineasTexto}
                 }`}
               >
                 {textoCopiado ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 text-slate-500" />}
-                <span>{textoCopiado ? '¡Copiado!' : 'Copiar Texto'}</span>
+                <span>{textoCopiado ? '¡Copiado!' : 'Copiar Factura'}</span>
               </button>
 
               <button
@@ -770,8 +1032,8 @@ ${lineasTexto}
               {/* Enviar por Gmail */}
               <button
                 onClick={abrirModalGmail}
-                className="px-2.5 sm:px-3 py-2.5 sm:py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition"
-                title="Enviar comprobante digital por Gmail"
+                className="px-2.5 sm:px-3 py-2.5 sm:py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition cursor-pointer"
+                title="Enviar factura oficial por Gmail"
               >
                 <Mail className="w-4 h-4 shrink-0" />
                 <span className="truncate">Gmail</span>
@@ -780,7 +1042,7 @@ ${lineasTexto}
               {/* Compartir por WhatsApp */}
               <button
                 onClick={compartirWhatsAppDirecto}
-                className="px-2.5 sm:px-3.5 py-2.5 sm:py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition"
+                className="px-2.5 sm:px-3.5 py-2.5 sm:py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition cursor-pointer"
                 title="Compartir comprobante por WhatsApp"
               >
                 <MessageCircle className="w-4 h-4 shrink-0" />
@@ -791,7 +1053,7 @@ ${lineasTexto}
               <button
                 onClick={handleCompartirComoImagen}
                 disabled={generandoImagen}
-                className="px-2.5 sm:px-3.5 py-2.5 sm:py-2 bg-pink-600 hover:bg-pink-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition"
+                className="px-2.5 sm:px-3.5 py-2.5 sm:py-2 bg-pink-600 hover:bg-pink-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition cursor-pointer"
                 title="Descargar imagen PNG completa de la factura"
               >
                 <ImageIcon className="w-4 h-4 shrink-0" />
@@ -801,11 +1063,11 @@ ${lineasTexto}
               {/* Imprimir Factura Entera */}
               <button
                 onClick={imprimirFactura}
-                className="px-3 sm:px-4 py-2.5 sm:py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition"
+                className="px-3 sm:px-4 py-2.5 sm:py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition cursor-pointer"
                 title="Imprimir factura completa"
               >
                 <Printer className="w-4 h-4 shrink-0" />
-                <span className="truncate">Imprimir</span>
+                <span className="truncate">Imprimir Factura</span>
               </button>
             </div>
 
@@ -831,7 +1093,7 @@ ${lineasTexto}
                   </div>
                   <div>
                     <h3 className="text-sm font-bold text-slate-900">Enviar Factura por Gmail</h3>
-                    <p className="text-[11px] text-slate-500">Venta {cabecera.numeroVenta} • Total: ${total.toFixed(2)}</p>
+                    <p className="text-[11px] text-slate-500">Factura {cabecera.numeroVenta} • Atendido por: {cabecera.usuario}</p>
                   </div>
                 </div>
                 <button 
@@ -848,44 +1110,47 @@ ${lineasTexto}
                 </label>
                 <input
                   type="email"
-                  placeholder="cliente@ejemplo.com"
                   value={emailDestinoGmail}
-                  onChange={(e) => setEmailDestinoGmail(e.target.value)}
-                  className="w-full px-3.5 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-red-500 outline-hidden font-medium"
+                  onChange={e => setEmailDestinoGmail(e.target.value)}
+                  placeholder="cliente@ejemplo.com"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 outline-none focus:ring-2 focus:ring-red-500"
                 />
               </div>
 
-              <div className="bg-slate-50 rounded-xl p-3 border border-slate-200 text-xs text-slate-600 space-y-1">
-                <p><strong>Asunto:</strong> Comprobante de Venta {cabecera.numeroVenta} - VARIEDADES CS</p>
-                <p><strong>Contenido:</strong> Formato digital HTML con membrete oficial, desglose de {totalArticulos} producto(s) y políticas de perfumería.</p>
-              </div>
-
               {notifGmail && (
-                <div className={`p-2.5 rounded-xl text-xs flex items-center gap-2 ${
+                <div className={`p-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 ${
                   notifGmail.tipo === 'ok' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-800 border border-rose-200'
                 }`}>
-                  {notifGmail.tipo === 'ok' ? <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" /> : <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />}
+                  {notifGmail.tipo === 'ok' ? <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" /> : <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />}
                   <span>{notifGmail.texto}</span>
                 </div>
               )}
 
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <div className="flex gap-2 justify-end pt-2">
                 <button
                   type="button"
                   onClick={() => setModalGmailAbierto(false)}
-                  disabled={enviandoGmail}
-                  className="px-3.5 py-2 border border-slate-300 hover:bg-slate-100 rounded-xl text-xs font-semibold text-slate-700 transition"
+                  className="px-3.5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl"
                 >
                   Cancelar
                 </button>
                 <button
                   type="button"
                   onClick={ejecutarEnvioFacturaGmail}
-                  disabled={enviandoGmail || !emailDestinoGmail}
-                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm disabled:opacity-50 cursor-pointer"
+                  disabled={enviandoGmail}
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition disabled:opacity-50 cursor-pointer"
                 >
-                  {enviandoGmail ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                  <span>{enviandoGmail ? 'Enviando...' : 'Confirmar y Enviar'}</span>
+                  {enviandoGmail ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Enviando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-3.5 h-3.5" />
+                      <span>Enviar Factura</span>
+                    </>
+                  )}
                 </button>
               </div>
             </div>

@@ -153,7 +153,7 @@ export const VentasView: React.FC<VentasProps> = ({
                 <th className="px-4 py-3 text-right">P. Unit ($ / C$)</th>
                 <th className="px-4 py-3 text-right">Total ($ / C$)</th>
                 <th className="px-4 py-3">Forma Pago</th>
-                <th className="px-4 py-3">Usuario</th>
+                <th className="px-4 py-3">Atendido por</th>
                 <th className="px-4 py-3 text-center">Estado</th>
                 <th className="px-4 py-3 text-center">Acciones</th>
               </tr>
@@ -190,7 +190,11 @@ export const VentasView: React.FC<VentasProps> = ({
                         {v.formaPago}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-slate-600">{v.usuario}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <span className="font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded-md text-[11px] border border-slate-200">
+                        {v.usuario}
+                      </span>
+                    </td>
                     <td className="px-4 py-3 text-center">
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                         esAnulada ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'

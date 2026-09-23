@@ -16,7 +16,8 @@ import {
   Package, 
   ImageOff, 
   Image as ImageIcon,
-  ArrowRightLeft
+  ArrowRightLeft,
+  UserCheck
 } from 'lucide-react';
 import { Producto, ItemCarrito, Cliente } from '../types';
 import { formatoUSD, formatoNIO, aCordobas, aDolares } from '../utils/currency';
@@ -30,6 +31,8 @@ interface PosProps {
   onToggleModoSinImagenes?: () => void;
   tasaCambio?: number;
   onAbrirModalTasa?: () => void;
+  usuarioActual?: string;
+  onCambiarUsuario?: () => void;
   onFinalizarVenta: (datosVenta: {
     items: ItemCarrito[];
     formaPago: string;
@@ -43,6 +46,7 @@ interface PosProps {
     monedaPago?: 'USD' | 'NIO';
     tasaCambio?: number;
     fechaVencimiento?: string;
+    atendidoPor?: string;
   }) => { success: boolean; mensaje: string; numeroVenta?: string };
 }
 
@@ -55,6 +59,8 @@ export const PosView: React.FC<PosProps> = ({
   onToggleModoSinImagenes,
   tasaCambio = 36.65,
   onAbrirModalTasa,
+  usuarioActual = 'JENIFER SANCHEZ',
+  onCambiarUsuario,
   onFinalizarVenta
 }) => {
   const [busqueda, setBusqueda] = useState('');
@@ -250,7 +256,8 @@ export const PosView: React.FC<PosProps> = ({
       cambioCordobas: cambioNIO,
       monedaPago: formaPago === 'Efectivo' ? monedaPagoEfectivo : monedaVenta,
       tasaCambio,
-      fechaVencimiento: formaPago === 'Crédito' ? fechaVencimiento : undefined
+      fechaVencimiento: formaPago === 'Crédito' ? fechaVencimiento : undefined,
+      atendidoPor: usuarioActual
     });
 
     if (res.success) {
@@ -277,6 +284,18 @@ export const PosView: React.FC<PosProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Badge Atendido por en POS */}
+          <button
+            type="button"
+            onClick={onCambiarUsuario}
+            title="Cambiar personal que atiende"
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 text-blue-200 border border-blue-400/30 text-xs font-bold transition cursor-pointer"
+          >
+            <UserCheck className="w-3.5 h-3.5 text-blue-400" />
+            <span className="hidden sm:inline text-[11px] text-slate-300">Atendido por:</span>
+            <span className="text-white font-extrabold">{usuarioActual}</span>
+          </button>
+
           {onAbrirModalTasa && (
             <button
               onClick={onAbrirModalTasa}
@@ -284,7 +303,7 @@ export const PosView: React.FC<PosProps> = ({
               title="Cambiar Tasa de Cambio"
             >
               <ArrowRightLeft className="w-3 h-3" />
-              <span>Cambiar Tasa</span>
+              <span className="hidden sm:inline">Cambiar Tasa</span>
             </button>
           )}
 

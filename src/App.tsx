@@ -43,6 +43,7 @@ import { CambiarPasswordModal } from './components/CambiarPasswordModal';
 import { ResetPasswordHandlerModal } from './components/ResetPasswordHandlerModal';
 import { GmailView } from './components/GmailView';
 import { ModalTasaCambio } from './components/ModalTasaCambio';
+import { ModalCambiarCajero } from './components/ModalCambiarCajero';
 import { googleSignOut } from './services/gmailAuth';
 import { exportarTodoAExcel, exportarVentasExcel, exportarInventarioExcel } from './utils/exportExcel';
 import { firestoreSync } from './services/firebase';
@@ -50,13 +51,14 @@ import { obtenerTasaCambio, guardarTasaCambio, aCordobas, aDolares } from './uti
 import { CheckCircle2, Info, LayoutDashboard, ShoppingBag, Package, Receipt, Menu } from 'lucide-react';
 
 export default function App() {
-  // Authentication state - Requiere autenticación con Google o credenciales
-  const [usuario, setUsuario] = useState<string | null>(() => {
-    return localStorage.getItem('variedades_cs_user') || null;
+  // Acceso directo 100% empresarial sin inicio de sesión bloqueante
+  const [usuario, setUsuario] = useState<string>(() => {
+    return localStorage.getItem('variedades_cs_user') || 'JENIFER SANCHEZ';
   });
   const [rol, setRol] = useState<string>(() => {
     return localStorage.getItem('variedades_cs_role') || 'Administrador';
   });
+  const [modalCambiarCajeroAbierto, setModalCambiarCajeroAbierto] = useState<boolean>(false);
 
   // Navigation
   const [vistaActual, setVistaActual] = useState<string>('dashboard');
@@ -451,15 +453,7 @@ export default function App() {
   };
 
   const handleLogout = async () => {
-    setUsuario(null);
-    localStorage.removeItem('variedades_cs_user');
-    localStorage.removeItem('variedades_cs_role');
-    localStorage.removeItem('variedades_cs_email');
-    try {
-      await googleSignOut();
-    } catch {
-      // Sesión de Google ya cerrada
-    }
+    setModalCambiarCajeroAbierto(true);
   };
 
   // Helper fecha
@@ -499,10 +493,11 @@ export default function App() {
     monedaPago?: 'USD' | 'NIO';
     tasaCambio?: number;
     fechaVencimiento?: string;
+    atendidoPor?: string;
   }) => {
     const numVenta = `V-${String(ventas.length + 1).padStart(5, '0')}`;
     const fechaHora = getFechaHora();
-    const usuarioActual = usuario || 'SISTEMA';
+    const usuarioActual = datos.atendidoPor || usuario || 'JENIFER SANCHEZ';
     const tc = datos.tasaCambio || tasaCambio;
 
     // Descontar existencias
@@ -963,16 +958,11 @@ export default function App() {
 
   return (
     <div className="flex h-screen bg-slate-100 text-slate-900 overflow-hidden font-sans">
-      {/* Modal Login si no está logueado */}
-      {!usuario && (
-        <LoginModal onLoginSuccess={handleLogin} />
-      )}
-
       {/* Sidebar principal */}
       <Sidebar
         vistaActual={vistaActual}
         setVistaActual={setVistaActual}
-        usuario={usuario || 'Invitado'}
+        usuario={usuario}
         rol={rol}
         onLogout={handleLogout}
         carritoCount={carrito.length}
@@ -982,13 +972,14 @@ export default function App() {
         onCerrarMenuMovil={() => setMenuAbiertoMovil(false)}
         modoSinImagenes={modoSinImagenes}
         onAbrirCambiarPassword={() => setModalCambiarPasswordAbierto(true)}
+        onCambiarCajero={() => setModalCambiarCajeroAbierto(true)}
       />
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <Topbar
           titulo={titulosVista[vistaActual] || 'VARIEDADES CS'}
-          usuario={usuario || 'Usuario'}
+          usuario={usuario}
           saldoCaja={saldoCajaActual}
           tasaCambio={tasaCambio}
           onAbrirModalTasa={() => setModalTasaAbierto(true)}
@@ -999,6 +990,7 @@ export default function App() {
           modoSinImagenes={modoSinImagenes}
           onToggleModoSinImagenes={toggleModoSinImagenes}
           onAbrirCambiarPassword={() => setModalCambiarPasswordAbierto(true)}
+          onCambiarCajero={() => setModalCambiarCajeroAbierto(true)}
         />
 
         {/* Dynamic Views */}
@@ -1021,8 +1013,11 @@ export default function App() {
               carrito={carrito}
               setCarrito={setCarrito}
               tasaCambio={tasaCambio}
+              onAbrirModalTasa={() => setModalTasaAbierto(true)}
               modoSinImagenes={modoSinImagenes}
               onToggleModoSinImagenes={toggleModoSinImagenes}
+              usuarioActual={usuario}
+              onCambiarUsuario={() => setModalCambiarCajeroAbierto(true)}
               onFinalizarVenta={registrarVenta}
             />
           )}
@@ -1212,6 +1207,18 @@ export default function App() {
         emailActual={localStorage.getItem('variedades_cs_remembered_gmail') || 'variedadescs.online@gmail.com'}
         modoSinImagenes={modoSinImagenes}
         onToggleModoSinImagenes={toggleModoSinImagenes}
+      />
+
+      {/* Modal para cambiar vendedor / personal que atiende */}
+      <ModalCambiarCajero
+        isOpen={modalCambiarCajeroAbierto}
+        cajeroActual={usuario}
+        onGuardar={(nuevo) => {
+          setUsuario(nuevo);
+          localStorage.setItem('variedades_cs_user', nuevo);
+          mostrarToast(`Personal que atiende asignado a: ${nuevo}`, 'ok');
+        }}
+        onClose={() => setModalCambiarCajeroAbierto(false)}
       />
 
       {/* Manejador de Enlace Oficial de Restablecimiento en la URL (como ChatGPT) */}

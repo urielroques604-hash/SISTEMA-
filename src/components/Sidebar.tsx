@@ -19,7 +19,8 @@ import {
   Mail,
   X,
   KeyRound,
-  Sparkles
+  Sparkles,
+  UserCheck
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -35,6 +36,7 @@ interface SidebarProps {
   onCerrarMenuMovil?: () => void;
   modoSinImagenes?: boolean;
   onAbrirCambiarPassword?: () => void;
+  onCambiarCajero?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -49,7 +51,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   menuAbiertoMovil = false,
   onCerrarMenuMovil,
   modoSinImagenes = false,
-  onAbrirCambiarPassword
+  onAbrirCambiarPassword,
+  onCambiarCajero
 }) => {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -169,31 +172,42 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </nav>
 
-      {/* User info & Logout */}
+      {/* User info & Atendido por */}
       <div className="p-3.5 border-t border-slate-800 bg-slate-950/60">
         <div className="flex items-center justify-between">
-          <div className="truncate pr-2">
-            <p className="text-xs font-bold text-slate-200 truncate">{usuario}</p>
-            <p className="text-[10px] text-slate-400">{rol}</p>
+          <div 
+            onClick={onCambiarCajero}
+            className="truncate pr-2 cursor-pointer group"
+            title="Clic para cambiar vendedor o persona que atiende"
+          >
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              <p className="text-xs font-bold text-slate-200 group-hover:text-blue-400 transition-colors truncate">
+                {usuario}
+              </p>
+            </div>
+            <p className="text-[10px] text-slate-400">Atendido por • {rol}</p>
           </div>
           <div className="flex items-center gap-1">
+            {onCambiarCajero && (
+              <button
+                type="button"
+                onClick={onCambiarCajero}
+                title="Cambiar personal que atiende"
+                className="p-2 text-slate-400 hover:text-emerald-400 hover:bg-emerald-950/30 rounded-xl transition-colors shrink-0 cursor-pointer"
+              >
+                <UserCheck className="w-4 h-4" />
+              </button>
+            )}
             {onAbrirCambiarPassword && (
               <button
                 onClick={onAbrirCambiarPassword}
-                title="Cambiar Contraseña / Enlace"
+                title="Seguridad & Contraseña"
                 className="p-2 text-slate-400 hover:text-blue-400 hover:bg-blue-950/30 rounded-xl transition-colors shrink-0 cursor-pointer"
               >
                 <KeyRound className="w-4 h-4" />
               </button>
             )}
-            <button
-              id="btn-logout"
-              onClick={onLogout}
-              title="Cerrar Sesión"
-              className="p-2 text-slate-400 hover:text-rose-400 hover:bg-rose-950/30 rounded-xl transition-colors shrink-0 cursor-pointer"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
           </div>
         </div>
       </div>
