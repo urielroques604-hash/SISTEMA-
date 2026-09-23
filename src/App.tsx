@@ -398,7 +398,7 @@ export default function App() {
       } catch {
         // En caso de modo offline, el sistema opera transparente con el almacenamiento local
       }
-    }, 300);
+    }, 350);
 
     return () => {
       cancelado = true;
@@ -1214,10 +1214,10 @@ export default function App() {
         onToggleModoSinImagenes={toggleModoSinImagenes}
       />
 
-      {/* Manejador de Enlace de Restablecimiento de Firebase en la URL */}
+      {/* Manejador de Enlace Oficial de Restablecimiento en la URL (como ChatGPT) */}
       <ResetPasswordHandlerModal
         onSuccess={() => {
-          mostrarToast('Contraseña restablecida correctamente. Ya puedes acceder con tu nueva clave.', 'info');
+          mostrarToast('¡Contraseña restablecida exitosamente! Ya puedes iniciar sesión.', 'info');
         }}
       />
 

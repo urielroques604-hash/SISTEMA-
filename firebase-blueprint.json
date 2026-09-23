@@ -1,163 +1,195 @@
 {
   "entities": {
-    "Product": {
-      "title": "Product",
-      "description": "Artículos y perfumes del inventario de VARIEDADES CS",
+    "Producto": {
+      "title": "Producto",
+      "description": "Producto del catálogo o inventario de VARIEDADES CS",
       "type": "object",
       "properties": {
-        "codigo": {
-          "type": "string",
-          "description": "Código de barras o código interno del producto"
-        },
-        "producto": {
-          "type": "string",
-          "description": "Nombre o descripción del producto"
-        },
-        "categoria": {
-          "type": "string",
-          "description": "Categoría (Perfumería, Cosméticos, etc.)"
-        },
-        "precioVenta": {
-          "type": "number",
-          "description": "Precio de venta al público"
-        },
-        "precioCosto": {
-          "type": "number",
-          "description": "Precio de costo de adquisición"
-        },
-        "existencia": {
-          "type": "number",
-          "description": "Stock o cantidad disponible"
-        },
-        "marca": {
-          "type": "string",
-          "description": "Marca del perfume o producto"
-        },
-        "imagen": {
-          "type": "string",
-          "description": "URL de la imagen del producto"
-        }
+        "codigo": { "type": "string", "description": "Código único de producto" },
+        "producto": { "type": "string", "description": "Nombre o descripción del producto" },
+        "categoria": { "type": "string", "description": "Categoría a la que pertenece" },
+        "existencia": { "type": "number", "description": "Cantidad de unidades en stock" },
+        "precioCompra": { "type": "number", "description": "Costo de compra en USD" },
+        "precioVenta": { "type": "number", "description": "Precio de venta en USD" },
+        "precioCompraCordobas": { "type": "number", "description": "Costo de compra en córdobas" },
+        "precioVentaCordobas": { "type": "number", "description": "Precio de venta en córdobas" },
+        "marca": { "type": "string", "description": "Marca del producto" },
+        "imagen": { "type": "string", "description": "URL o base64 de la imagen" },
+        "sinImagen": { "type": "boolean", "description": "Indica si no tiene imagen asignada" }
       },
-      "required": ["codigo", "producto", "precioVenta", "existencia"]
+      "required": ["codigo", "producto", "categoria", "existencia", "precioCompra", "precioVenta"]
     },
-    "Sale": {
-      "title": "Sale",
-      "description": "Registro de ventas de VARIEDADES CS",
+    "Cliente": {
+      "title": "Cliente",
+      "description": "Cliente registrado para ventas al crédito y contado",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
-        "numeroVenta": { "type": "string" },
-        "fecha": { "type": "string" },
-        "cliente": { "type": "string" },
-        "idCliente": { "type": "string" },
-        "formaPago": { "type": "string" },
-        "total": { "type": "number" },
-        "estado": { "type": "string" }
-      },
-      "required": ["numeroVenta", "fecha", "total", "formaPago"]
-    },
-    "Credit": {
-      "title": "Credit",
-      "description": "Cuentas por cobrar y créditos otorgados",
-      "type": "object",
-      "properties": {
-        "numeroCredito": { "type": "string" },
-        "numeroVenta": { "type": "string" },
-        "fecha": { "type": "string" },
-        "cliente": { "type": "string" },
-        "idCliente": { "type": "string" },
-        "totalCredito": { "type": "number" },
-        "abonado": { "type": "number" },
-        "saldo": { "type": "number" },
-        "vencimiento": { "type": "string" },
-        "estado": { "type": "string" }
-      },
-      "required": ["numeroCredito", "cliente", "totalCredito", "saldo", "estado"]
-    },
-    "Payment": {
-      "title": "Payment",
-      "description": "Abonos y pagos a créditos",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "numeroCredito": { "type": "string" },
-        "fecha": { "type": "string" },
-        "cliente": { "type": "string" },
-        "monto": { "type": "number" },
-        "metodoPago": { "type": "string" }
-      },
-      "required": ["id", "numeroCredito", "monto", "fecha"]
-    },
-    "Customer": {
-      "title": "Customer",
-      "description": "Clientes registrados en el sistema",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "nombre": { "type": "string" },
-        "telefono": { "type": "string" },
-        "direccion": { "type": "string" },
-        "email": { "type": "string" },
-        "limiteCredito": { "type": "number" }
+        "id": { "type": "string", "description": "Identificador único de cliente" },
+        "nombre": { "type": "string", "description": "Nombre completo del cliente" },
+        "telefono": { "type": "string", "description": "Teléfono de contacto" },
+        "direccion": { "type": "string", "description": "Dirección física" },
+        "observaciones": { "type": "string", "description": "Notas o referencias" }
       },
       "required": ["id", "nombre"]
     },
-    "Supplier": {
-      "title": "Supplier",
-      "description": "Proveedores de mercancía",
+    "Proveedor": {
+      "title": "Proveedor",
+      "description": "Proveedor de mercadería para compras de stock",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
-        "nombre": { "type": "string" },
-        "contacto": { "type": "string" },
-        "telefono": { "type": "string" }
+        "id": { "type": "string", "description": "Identificador único de proveedor" },
+        "nombre": { "type": "string", "description": "Nombre o razón social" },
+        "telefono": { "type": "string", "description": "Teléfono de contacto" },
+        "direccion": { "type": "string", "description": "Dirección física" },
+        "observaciones": { "type": "string", "description": "Notas o referencias" }
       },
       "required": ["id", "nombre"]
     },
-    "CashMovement": {
-      "title": "CashMovement",
-      "description": "Movimientos de flujo de caja chica",
+    "VentaRegistro": {
+      "title": "VentaRegistro",
+      "description": "Registro de línea de venta completada o anulada",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
-        "fecha": { "type": "string" },
-        "tipo": { "type": "string" },
-        "concepto": { "type": "string" },
-        "monto": { "type": "number" },
-        "usuario": { "type": "string" },
-        "saldo": { "type": "number" }
+        "numeroVenta": { "type": "string", "description": "Número de ticket o comprobante" },
+        "fecha": { "type": "string", "description": "Fecha y hora del registro" },
+        "codigo": { "type": "string", "description": "Código de producto vendido" },
+        "producto": { "type": "string", "description": "Nombre del producto vendido" },
+        "categoria": { "type": "string", "description": "Categoría del producto" },
+        "cantidad": { "type": "number", "description": "Cantidad de unidades vendidas" },
+        "precioUnitario": { "type": "number", "description": "Precio unitario en USD" },
+        "precioUnitarioCordobas": { "type": "number", "description": "Precio unitario en C$" },
+        "total": { "type": "number", "description": "Total en USD" },
+        "totalCordobas": { "type": "number", "description": "Total en C$" },
+        "tasaCambio": { "type": "number", "description": "Tipo de cambio aplicado" },
+        "formaPago": { "type": "string", "description": "Efectivo, Tarjeta, Transferencia, Crédito" },
+        "monedaPago": { "type": "string", "description": "USD o NIO" },
+        "cliente": { "type": "string", "description": "Nombre del cliente" },
+        "idCliente": { "type": "string", "description": "ID del cliente" },
+        "efectivoRecibido": { "type": "number", "description": "Monto recibido en USD" },
+        "cambio": { "type": "number", "description": "Cambio devuelto en USD" },
+        "efectivoRecibidoCordobas": { "type": "number", "description": "Monto recibido en C$" },
+        "cambioCordobas": { "type": "number", "description": "Cambio devuelto en C$" },
+        "numCredito": { "type": "string", "description": "Número de crédito asociado si aplica" },
+        "usuario": { "type": "string", "description": "Usuario que realizó la venta" },
+        "estado": { "type": "string", "description": "COMPLETADA o ANULADA" }
       },
-      "required": ["id", "fecha", "tipo", "monto", "saldo"]
+      "required": ["numeroVenta", "fecha", "codigo", "producto", "cantidad", "precioUnitario", "total", "formaPago", "usuario", "estado"]
+    },
+    "Credito": {
+      "title": "Credito",
+      "description": "Registro de cuenta al crédito otorgada a un cliente",
+      "type": "object",
+      "properties": {
+        "numeroCredito": { "type": "string", "description": "Número de crédito único" },
+        "fecha": { "type": "string", "description": "Fecha de otorgamiento" },
+        "idCliente": { "type": "string", "description": "ID del cliente" },
+        "cliente": { "type": "string", "description": "Nombre del cliente" },
+        "numeroVenta": { "type": "string", "description": "Venta asociada" },
+        "totalCredito": { "type": "number", "description": "Monto total del crédito en USD" },
+        "totalCreditoCordobas": { "type": "number", "description": "Monto total en C$" },
+        "abonado": { "type": "number", "description": "Total abonado en USD" },
+        "abonadoCordobas": { "type": "number", "description": "Total abonado en C$" },
+        "saldo": { "type": "number", "description": "Saldo pendiente en USD" },
+        "saldoCordobas": { "type": "number", "description": "Saldo pendiente en C$" },
+        "tasaCambio": { "type": "number", "description": "Tasa de cambio del crédito" },
+        "vencimiento": { "type": "string", "description": "Fecha de vencimiento" },
+        "estado": { "type": "string", "description": "PENDIENTE, PAGADO, VENCIDO, ANULADO" }
+      },
+      "required": ["numeroCredito", "fecha", "idCliente", "cliente", "numeroVenta", "totalCredito", "saldo", "estado"]
+    },
+    "Abono": {
+      "title": "Abono",
+      "description": "Abono o pago parcial/total a un crédito",
+      "type": "object",
+      "properties": {
+        "numeroAbono": { "type": "string", "description": "Identificador único de abono" },
+        "fecha": { "type": "string", "description": "Fecha y hora del abono" },
+        "numeroCredito": { "type": "string", "description": "Crédito al que se aplica" },
+        "idCliente": { "type": "string", "description": "ID del cliente" },
+        "cliente": { "type": "string", "description": "Nombre del cliente" },
+        "montoAbonado": { "type": "number", "description": "Monto abonado en USD" },
+        "montoAbonadoCordobas": { "type": "number", "description": "Monto abonado en C$" },
+        "tasaCambio": { "type": "number", "description": "Tasa de cambio aplicada" },
+        "metodoPago": { "type": "string", "description": "Efectivo, Transferencia, etc." },
+        "observaciones": { "type": "string", "description": "Detalles u observaciones" }
+      },
+      "required": ["numeroAbono", "fecha", "numeroCredito", "idCliente", "cliente", "montoAbonado", "metodoPago"]
+    },
+    "MovimientoCaja": {
+      "title": "MovimientoCaja",
+      "description": "Entrada, salida, venta, abono o cierre en el flujo de caja",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Identificador del movimiento" },
+        "fecha": { "type": "string", "description": "Fecha y hora" },
+        "tipo": { "type": "string", "description": "Ingreso, Egreso, Venta, Abono, Cierre" },
+        "concepto": { "type": "string", "description": "Descripción del movimiento" },
+        "monto": { "type": "number", "description": "Monto en USD (positivo o negativo)" },
+        "montoCordobas": { "type": "number", "description": "Monto en C$" },
+        "tasaCambio": { "type": "number", "description": "Tasa de cambio del movimiento" },
+        "saldo": { "type": "number", "description": "Saldo resultante en USD" },
+        "saldoCordobas": { "type": "number", "description": "Saldo resultante en C$" },
+        "usuario": { "type": "string", "description": "Cajero o usuario" }
+      },
+      "required": ["id", "fecha", "tipo", "concepto", "monto", "saldo"]
+    },
+    "CompraRegistro": {
+      "title": "CompraRegistro",
+      "description": "Compra o reabastecimiento de mercadería a proveedores",
+      "type": "object",
+      "properties": {
+        "numeroCompra": { "type": "string", "description": "Número de compra" },
+        "fecha": { "type": "string", "description": "Fecha de la compra" },
+        "codigo": { "type": "string", "description": "Código del producto reabastecido" },
+        "producto": { "type": "string", "description": "Nombre del producto" },
+        "categoria": { "type": "string", "description": "Categoría" },
+        "cantidad": { "type": "number", "description": "Cantidad de unidades compradas" },
+        "precioUnitario": { "type": "number", "description": "Costo unitario" },
+        "precioCompra": { "type": "number", "description": "Costo de compra en USD" },
+        "precioCompraCordobas": { "type": "number", "description": "Costo en C$" },
+        "precioVenta": { "type": "number", "description": "Precio de venta proyectado" },
+        "precioVentaCordobas": { "type": "number", "description": "Precio proyectado en C$" },
+        "total": { "type": "number", "description": "Total compra en USD" },
+        "totalCordobas": { "type": "number", "description": "Total compra en C$" },
+        "tasaCambio": { "type": "number", "description": "Tasa de cambio aplicada" },
+        "proveedor": { "type": "string", "description": "Nombre del proveedor" },
+        "pagadoDesdeCaja": { "type": "boolean", "description": "Si se debitó del saldo de caja" }
+      },
+      "required": ["numeroCompra", "fecha", "codigo", "producto", "cantidad", "total"]
     }
   },
   "firestore": {
     "/productos/{productoId}": {
-      "schema": "Product",
-      "description": "Catálogo de productos e inventario"
-    },
-    "/ventas/{ventaId}": {
-      "schema": "Sale",
-      "description": "Historial de ventas y comprobantes"
-    },
-    "/creditos/{creditoId}": {
-      "schema": "Credit",
-      "description": "Créditos otorgados y saldos pendientes"
-    },
-    "/abonos/{abonoId}": {
-      "schema": "Payment",
-      "description": "Historial de abonos a cuentas de crédito"
+      "schema": "Producto",
+      "description": "Colección de productos e inventario de la tienda"
     },
     "/clientes/{clienteId}": {
-      "schema": "Customer",
-      "description": "Directorio de clientes y límites de crédito"
+      "schema": "Cliente",
+      "description": "Colección de clientes registrados"
     },
     "/proveedores/{proveedorId}": {
-      "schema": "Supplier",
-      "description": "Directorio de proveedores mayoristas"
+      "schema": "Proveedor",
+      "description": "Colección de proveedores de productos"
     },
-    "/caja/{cajaId}": {
-      "schema": "CashMovement",
-      "description": "Registro de ingresos, egresos y arqueo de caja"
+    "/ventas/{ventaId}": {
+      "schema": "VentaRegistro",
+      "description": "Colección de registros de venta y tickets"
+    },
+    "/creditos/{creditoId}": {
+      "schema": "Credito",
+      "description": "Colección de créditos y cuentas por cobrar"
+    },
+    "/abonos/{abonoId}": {
+      "schema": "Abono",
+      "description": "Colección de abonos a créditos"
+    },
+    "/caja/{movimientoId}": {
+      "schema": "MovimientoCaja",
+      "description": "Colección de movimientos y flujo de caja"
+    },
+    "/compras/{compraId}": {
+      "schema": "CompraRegistro",
+      "description": "Colección de compras y reabastecimientos"
     }
   }
 }

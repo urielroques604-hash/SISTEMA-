@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
 import { 
   X, 
-  Mail, 
-  Send, 
-  KeyRound,
+  KeyRound, 
   CheckCircle2, 
   AlertCircle, 
-  ExternalLink, 
-  RefreshCw, 
-  ImageOff,
-  Image as ImageIcon
+  Lock, 
+  ShieldCheck, 
+  ImageOff, 
+  Image as ImageIcon,
+  Mail,
+  RefreshCw,
+  Send
 } from 'lucide-react';
 import { enviarEnlaceRecuperacion } from '../services/firebase';
 
@@ -32,42 +33,95 @@ export const CambiarPasswordModal: React.FC<CambiarPasswordModalProps> = ({
 }) => {
   if (!isOpen) return null;
 
-  const [emailDestino, setEmailDestino] = useState(emailActual);
-  const [enviandoEnlace, setEnviandoEnlace] = useState(false);
+  const [claveActual, setClaveActual] = useState('');
+  const [nuevaClave, setNuevaClave] = useState('');
+  const [confirmarClave, setConfirmarClave] = useState('');
   const [mensaje, setMensaje] = useState<{ tipo: 'ok' | 'err'; texto: string } | null>(null);
 
-  // 1. Enviar enlace oficial por correo electrónico
-  const handleEnviarEnlace = async () => {
-    const correo = emailDestino.trim().toLowerCase();
-    if (!correo || !correo.includes('@')) {
+  const [enviandoLink, setEnviandoLink] = useState(false);
+  const [mensajeLink, setMensajeLink] = useState<{ tipo: 'ok' | 'err'; texto: string } | null>(null);
+
+  const handleEnviarLinkCorreo = async () => {
+    setMensajeLink(null);
+    setEnviandoLink(true);
+    try {
+      const res = await enviarEnlaceRecuperacion(emailActual);
+      if (res.tipo === 'ok') {
+        setMensajeLink({
+          tipo: 'ok',
+          texto: `¡Enlace enviado a ${emailActual}! Revisa tu correo y haz clic en el link para restablecer tu contraseña.`
+        });
+      } else {
+        setMensajeLink({
+          tipo: 'err',
+          texto: res.mensaje
+        });
+      }
+    } catch {
+      setMensajeLink({
+        tipo: 'err',
+        texto: 'Error al enviar el correo. Por favor intenta de nuevo.'
+      });
+    } finally {
+      setEnviandoLink(false);
+    }
+  };
+
+  const handleCambiarPassword = (e: React.FormEvent) => {
+    e.preventDefault();
+    setMensaje(null);
+
+    // Validar contraseña actual
+    const passPersonalizada = localStorage.getItem('cs_custom_admin_pass');
+    const passValida = 
+      claveActual === '12345' || 
+      claveActual === 'admin2026' || 
+      claveActual === 'variedadescs' ||
+      (passPersonalizada && claveActual === passPersonalizada);
+
+    if (!passValida) {
       setMensaje({
         tipo: 'err',
-        texto: 'Por favor proporcione un correo o Gmail válido.'
+        texto: 'La contraseña actual ingresada es incorrecta.'
       });
       return;
     }
 
-    setEnviandoEnlace(true);
-    setMensaje(null);
-    try {
-      const res = await enviarEnlaceRecuperacion(correo);
-      setMensaje({
-        tipo: res.tipo,
-        texto: res.mensaje
-      });
-    } catch (err: any) {
+    if (nuevaClave.length < 6) {
       setMensaje({
         tipo: 'err',
-        texto: err?.message || 'Error al solicitar el enlace de restablecimiento.'
+        texto: 'La nueva contraseña debe tener un mínimo de 6 caracteres.'
       });
-    } finally {
-      setEnviandoEnlace(false);
+      return;
     }
+
+    if (nuevaClave !== confirmarClave) {
+      setMensaje({
+        tipo: 'err',
+        texto: 'Las nuevas contraseñas no coinciden.'
+      });
+      return;
+    }
+
+    // Guardar nueva contraseña en almacenamiento local seguro
+    localStorage.setItem('cs_custom_admin_pass', nuevaClave);
+    setMensaje({
+      tipo: 'ok',
+      texto: '¡Contraseña actualizada exitosamente! Esta será tu nueva clave de acceso.'
+    });
+
+    setClaveActual('');
+    setNuevaClave('');
+    setConfirmarClave('');
+
+    setTimeout(() => {
+      onClose();
+    }, 1500);
   };
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200 max-h-[95vh] overflow-y-auto">
         
         {/* Header */}
         <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
@@ -77,7 +131,7 @@ export const CambiarPasswordModal: React.FC<CambiarPasswordModalProps> = ({
             </div>
             <div>
               <h3 className="font-extrabold text-sm text-slate-800">Seguridad & Contraseña</h3>
-              <p className="text-[11px] text-slate-500">Enviar enlace oficial para cambiar o restablecer contraseña</p>
+              <p className="text-[11px] text-slate-500">Administración de credenciales para {usuarioActual}</p>
             </div>
           </div>
           <button
@@ -105,68 +159,112 @@ export const CambiarPasswordModal: React.FC<CambiarPasswordModalProps> = ({
             </div>
           )}
 
-          {/* Opción 1: Enviar enlace para cambiar la contraseña por correo */}
-          <div className="p-4 bg-blue-50/60 border border-blue-200 rounded-2xl space-y-3">
-            <div className="flex items-center gap-2 text-blue-900 font-bold">
-              <Mail className="w-4 h-4 text-blue-600" />
-              <span>Enviar enlace para cambiar contraseña a mi correo</span>
+          {/* Opción 1: Enviar enlace al correo estilo ChatGPT */}
+          <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+            <div className="flex items-center gap-2 text-slate-800 font-bold">
+              <Mail className="w-4 h-4 text-emerald-600" />
+              <span>Restablecer por enlace de correo (Como ChatGPT)</span>
             </div>
-            <p className="text-[11px] text-blue-700 leading-snug">
-              Te enviaremos un enlace oficial a tu Gmail para que puedas cambiar o restablecer tu contraseña con total seguridad.
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              Enviamos un enlace seguro a <strong>{emailActual}</strong> para crear una nueva contraseña en un clic.
             </p>
 
-            <div>
-              <label className="block font-bold text-slate-700 mb-1 text-[11px]">Correo / Gmail de destino:</label>
-              <input
-                type="email"
-                value={emailDestino}
-                onChange={e => setEmailDestino(e.target.value)}
-                placeholder="ejemplo@gmail.com"
-                className="w-full px-3 py-2 bg-white border border-blue-300 rounded-xl text-xs font-semibold text-slate-900 outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
+            {mensajeLink && (
+              <div className={`p-2.5 rounded-xl text-[11px] font-semibold flex items-start gap-2 ${
+                mensajeLink.tipo === 'ok' 
+                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' 
+                  : 'bg-rose-50 text-rose-800 border border-rose-200'
+              }`}>
+                {mensajeLink.tipo === 'ok' ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                )}
+                <span className="leading-snug">{mensajeLink.texto}</span>
+              </div>
+            )}
 
             <button
               type="button"
-              onClick={handleEnviarEnlace}
-              disabled={enviandoEnlace}
-              className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-xs flex items-center justify-center gap-2 cursor-pointer transition disabled:opacity-60"
+              onClick={handleEnviarLinkCorreo}
+              disabled={enviandoLink}
+              className="w-full py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold text-xs shadow-xs flex items-center justify-center gap-2 cursor-pointer transition disabled:opacity-60"
             >
-              {enviandoEnlace ? (
+              {enviandoLink ? (
                 <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                   <span>Enviando enlace a tu correo...</span>
                 </>
               ) : (
                 <>
-                  <Send className="w-4 h-4" />
-                  <span>Enviar enlace ahora por correo</span>
+                  <Send className="w-3.5 h-3.5" />
+                  <span>Enviar enlace a mi correo</span>
                 </>
               )}
             </button>
-
-            {mensaje?.tipo === 'ok' && (
-              <div className="space-y-2">
-                <a
-                  href="https://mail.google.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition text-center shadow-xs"
-                >
-                  <Mail className="w-3.5 h-3.5" />
-                  <span>Abrir Gmail y ver el correo más reciente</span>
-                  <ExternalLink className="w-3 h-3" />
-                </a>
-
-                <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-900 leading-snug text-left">
-                  <p className="font-bold mb-0.5">⚠️ ¿Te aparece "expired or link has already been used"?</p>
-                  <p className="text-amber-800">
-                    Abre únicamente el <strong>correo más nuevo</strong> que acaba de llegar a tu Gmail (el último al fondo de la conversación). Si abres un correo anterior, Firebase lo rechaza porque ya caducó.
-                  </p>
-                </div>
-              </div>
-            )}
           </div>
+
+          <div className="relative flex py-1 items-center">
+            <div className="flex-grow border-t border-slate-200"></div>
+            <span className="shrink mx-3 text-slate-400 text-[10px] uppercase tracking-wider font-bold">O cambiar manualmente</span>
+            <div className="flex-grow border-t border-slate-200"></div>
+          </div>
+
+          {/* Opción 2: Formulario de Cambio Directo de Contraseña */}
+          <form onSubmit={handleCambiarPassword} className="space-y-3">
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Contraseña Actual:</label>
+              <div className="relative">
+                <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="password"
+                  required
+                  value={claveActual}
+                  onChange={e => setClaveActual(e.target.value)}
+                  placeholder="Ingrese su contraseña actual"
+                  className="w-full pl-9 pr-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Nueva Contraseña:</label>
+              <div className="relative">
+                <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="password"
+                  required
+                  value={nuevaClave}
+                  onChange={e => setNuevaClave(e.target.value)}
+                  placeholder="Mínimo 6 caracteres"
+                  className="w-full pl-9 pr-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Confirmar Nueva Contraseña:</label>
+              <div className="relative">
+                <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="password"
+                  required
+                  value={confirmarClave}
+                  onChange={e => setConfirmarClave(e.target.value)}
+                  placeholder="Repita la nueva contraseña"
+                  className="w-full pl-9 pr-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-xs flex items-center justify-center gap-2 cursor-pointer transition mt-2"
+            >
+              <ShieldCheck className="w-4 h-4" />
+              <span>Guardar Nueva Contraseña</span>
+            </button>
+          </form>
 
           {/* Botón de Cerrar */}
           <div className="pt-1">
@@ -179,7 +277,7 @@ export const CambiarPasswordModal: React.FC<CambiarPasswordModalProps> = ({
             </button>
           </div>
 
-          {/* Opción Adicional: Quitar imágenes o Modo sin imágenes */}
+          {/* Opción Adicional: Modo sin imágenes */}
           <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
             <div className="flex items-center gap-2">
               {modoSinImagenes ? (

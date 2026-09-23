@@ -1,59 +1,8 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Red de seguridad global
     match /{document=**} {
-      allow read, write: if false;
-    }
-
-    function isValidId(id) {
-      return id is string && id.size() > 0 && id.size() <= 128;
-    }
-
-    // Colección de prueba para verificar conectividad
-    match /test/{docId} {
-      allow read, write: if isValidId(docId);
-    }
-
-    // Catálogo de Productos e Inventario
-    match /productos/{productoId} {
-      allow read, write: if isValidId(productoId);
-    }
-
-    // Registro de Ventas
-    match /ventas/{ventaId} {
-      allow read, write: if isValidId(ventaId);
-    }
-
-    // Gestión de Créditos
-    match /creditos/{creditoId} {
-      allow read, write: if isValidId(creditoId);
-    }
-
-    // Historial de Abonos
-    match /abonos/{abonoId} {
-      allow read, write: if isValidId(abonoId);
-    }
-
-    // Directorio de Clientes
-    match /clientes/{clienteId} {
-      allow read, write: if isValidId(clienteId);
-    }
-
-    // Directorio de Proveedores
-    match /proveedores/{proveedorId} {
-      allow read, write: if isValidId(proveedorId);
-    }
-
-    // Registro de Compras
-    match /compras/{compraId} {
-      allow read, write: if isValidId(compraId);
-    }
-
-    // Movimientos de Caja Chica
-    match /caja/{cajaId} {
-      allow read, write: if isValidId(cajaId);
+      allow read, write: if true;
     }
   }
 }

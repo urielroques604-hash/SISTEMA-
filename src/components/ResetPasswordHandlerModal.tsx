@@ -1,6 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { KeyRound, CheckCircle2, AlertCircle, RefreshCw, Eye, EyeOff, Lock, ArrowRight } from 'lucide-react';
-import { verificarCodigoRestablecimiento, restablecerPasswordConCodigo, enviarEnlaceRecuperacion } from '../services/firebase';
+import { 
+  KeyRound, 
+  CheckCircle2, 
+  AlertCircle, 
+  RefreshCw, 
+  Eye, 
+  EyeOff, 
+  Lock, 
+  ArrowRight,
+  ShieldCheck
+} from 'lucide-react';
+import { 
+  verificarCodigoRestablecimiento, 
+  restablecerPasswordConCodigo, 
+  enviarEnlaceRecuperacion 
+} from '../services/firebase';
 
 interface ResetPasswordHandlerModalProps {
   onSuccess: () => void;
@@ -26,11 +40,15 @@ export const ResetPasswordHandlerModal: React.FC<ResetPasswordHandlerModalProps>
     try {
       const urlParams = new URLSearchParams(window.location.search);
       const mode = urlParams.get('mode');
-      const code = urlParams.get('oobCode');
+      const code = urlParams.get('oobCode') || urlParams.get('localToken');
+      const emailParam = urlParams.get('email');
 
       if (mode === 'resetPassword' && code) {
         setOobCode(code);
-        verificarCodigo(code);
+        if (emailParam) {
+          setEmailAsociado(emailParam);
+        }
+        verificarCodigo(code, emailParam || undefined);
       } else {
         setVerificando(false);
       }
@@ -39,13 +57,14 @@ export const ResetPasswordHandlerModal: React.FC<ResetPasswordHandlerModalProps>
     }
   }, []);
 
-  const verificarCodigo = async (code: string) => {
+  const verificarCodigo = async (code: string, fallbackEmail?: string) => {
     setVerificando(true);
     setErrorCodigo(null);
     const res = await verificarCodigoRestablecimiento(code);
     setVerificando(false);
-    if (res.success && res.email) {
-      setEmailAsociado(res.email);
+    if (res.success) {
+      if (res.email) setEmailAsociado(res.email);
+      else if (fallbackEmail) setEmailAsociado(fallbackEmail);
     } else {
       setErrorCodigo(res.error || 'El enlace de restablecimiento ha expirado o ya fue utilizado.');
     }
@@ -62,7 +81,7 @@ export const ResetPasswordHandlerModal: React.FC<ResetPasswordHandlerModalProps>
     }
 
     if (nuevaPassword !== confirmarPassword) {
-      setErrorGuardado('Las contraseñas no coinciden. Por favor verifica.');
+      setErrorGuardado('Las contraseñas ingresadas no coinciden.');
       return;
     }
 
@@ -72,147 +91,182 @@ export const ResetPasswordHandlerModal: React.FC<ResetPasswordHandlerModalProps>
 
     if (res.success) {
       setExito(true);
-      // Guardar también en localStorage para acceso inmediato sin internet
-      localStorage.setItem('cs_custom_admin_pass', nuevaPassword);
-      // Limpiar parámetros de la URL
+      // Limpiar parámetros de la URL de forma limpia
       try {
-        window.history.replaceState({}, document.title, window.location.pathname);
-      } catch {}
-
-      setTimeout(() => {
-        onSuccess();
-      }, 2500);
+        const url = new URL(window.location.href);
+        url.searchParams.delete('mode');
+        url.searchParams.delete('oobCode');
+        url.searchParams.delete('localToken');
+        url.searchParams.delete('email');
+        url.searchParams.delete('apiKey');
+        window.history.replaceState({}, document.title, url.pathname);
+      } catch {
+        // Ignorar
+      }
     } else {
-      setErrorGuardado(res.mensaje);
+      setErrorGuardado(res.error || 'No se pudo restablecer la contraseña. Intente nuevamente.');
     }
   };
 
-  const handleReenviarNuevoEnlace = async () => {
-    const email = emailAsociado || localStorage.getItem('variedades_cs_remembered_gmail') || 'variedadescs.online@gmail.com';
+  const handleSolicitarNuevoEnlace = async () => {
+    if (!emailAsociado && !localStorage.getItem('variedades_cs_remembered_gmail')) {
+      setErrorCodigo('Por favor solicite un nuevo enlace desde la pantalla de inicio de sesión.');
+      return;
+    }
+    const correo = emailAsociado || localStorage.getItem('variedades_cs_remembered_gmail') || '';
     setReenviando(true);
     setMensajeReenvio(null);
-    const res = await enviarEnlaceRecuperacion(email);
-    setReenviando(false);
-    setMensajeReenvio(res.mensaje);
-  };
-
-  const limpiarUrlYCerrar = () => {
     try {
-      window.history.replaceState({}, document.title, window.location.pathname);
-    } catch {}
-    setOobCode(null);
+      const res = await enviarEnlaceRecuperacion(correo);
+      if (res.tipo === 'ok') {
+        setMensajeReenvio(`Hemos enviado un nuevo enlace de restablecimiento a ${correo}. Revisa tu correo.`);
+      } else {
+        setErrorCodigo(res.mensaje);
+      }
+    } catch {
+      setErrorCodigo('Error al enviar el enlace. Intente nuevamente.');
+    } finally {
+      setReenviando(false);
+    }
   };
 
-  // Si no hay código en la URL, no renderizar nada
   if (!oobCode) return null;
 
   return (
-    <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md border border-slate-200 overflow-hidden text-center p-6 sm:p-7 animate-in fade-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md flex items-center justify-center z-[100] p-4">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md border border-slate-200 overflow-hidden text-center p-7 sm:p-8 animate-in fade-in zoom-in-95 duration-200">
         
-        {/* Cabecera */}
-        <div className="flex flex-col items-center justify-center mb-4">
-          <div className="w-12 h-12 bg-blue-100 text-blue-700 rounded-2xl flex items-center justify-center mb-2 shadow-xs">
-            <KeyRound className="w-6 h-6" />
-          </div>
-          <h2 className="text-lg font-black text-slate-900">Restablecer Contraseña</h2>
-          {emailAsociado && (
-            <p className="text-xs font-semibold text-slate-500 mt-0.5">
-              Cuenta: <span className="text-slate-800 font-bold">{emailAsociado}</span>
-            </p>
-          )}
+        {/* Icono Principal */}
+        <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-4 border border-emerald-200 shadow-sm">
+          {exito ? <CheckCircle2 className="w-7 h-7" /> : <KeyRound className="w-7 h-7" />}
         </div>
 
+        {/* Verificando estado inicial */}
         {verificando ? (
-          <div className="py-8 flex flex-col items-center justify-center gap-3">
-            <RefreshCw className="w-6 h-6 text-blue-600 animate-spin" />
-            <p className="text-xs font-semibold text-slate-600">Verificando enlace de restablecimiento...</p>
+          <div className="py-6 space-y-3">
+            <RefreshCw className="w-6 h-6 animate-spin mx-auto text-emerald-600" />
+            <h3 className="font-bold text-slate-800 text-sm">Verificando enlace de restablecimiento...</h3>
+            <p className="text-xs text-slate-500">Un momento por favor mientras validamos el token de seguridad.</p>
           </div>
         ) : errorCodigo ? (
+          /* Error en el token (caducado o ya utilizado) */
           <div className="space-y-4 text-left">
-            <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 space-y-1.5">
-              <div className="flex items-center gap-2 font-bold text-rose-900">
-                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
-                <span>El enlace ha expirado o ya fue utilizado</span>
+            <div className="p-3.5 bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl text-xs font-semibold flex items-start gap-2.5">
+              <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold text-rose-900">Enlace no válido o expirado</p>
+                <p className="text-rose-700 text-[11px] mt-0.5">{errorCodigo}</p>
               </div>
-              <p className="text-[11px] leading-relaxed text-rose-700">
-                Los enlaces de restablecimiento de contraseña de Firebase son de un solo uso y caducan rápidamente por motivos de seguridad. Además, si se generó una nueva solicitud, los enlaces anteriores quedan automáticamente invalidados.
-              </p>
             </div>
 
             {mensajeReenvio && (
-              <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-semibold flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl text-xs font-semibold flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                 <span>{mensajeReenvio}</span>
               </div>
             )}
 
-            <div className="space-y-2 pt-1">
-              <button
-                type="button"
-                onClick={handleReenviarNuevoEnlace}
-                disabled={reenviando}
-                className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-60"
-              >
-                {reenviando ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Enviando nuevo enlace...</span>
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="w-4 h-4" />
-                    <span>Enviar un nuevo enlace a mi Gmail ahora</span>
-                  </>
-                )}
-              </button>
+            <p className="text-xs text-slate-500 leading-relaxed text-center">
+              Por razones de seguridad, los enlaces para cambiar contraseña tienen un tiempo de validez limitado y solo pueden utilizarse una vez.
+            </p>
 
-              <button
-                type="button"
-                onClick={limpiarUrlYCerrar}
-                className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition cursor-pointer"
-              >
-                Volver a la aplicación
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={handleSolicitarNuevoEnlace}
+              disabled={reenviando}
+              className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold text-xs shadow-sm flex items-center justify-center gap-2 cursor-pointer transition disabled:opacity-60"
+            >
+              {reenviando ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>Enviando nuevo enlace...</span>
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="w-4 h-4" />
+                  <span>Solicitar un nuevo enlace de restablecimiento</span>
+                </>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setOobCode(null);
+                try {
+                  const url = new URL(window.location.href);
+                  url.searchParams.delete('mode');
+                  url.searchParams.delete('oobCode');
+                  url.searchParams.delete('localToken');
+                  url.searchParams.delete('email');
+                  url.searchParams.delete('apiKey');
+                  window.history.replaceState({}, document.title, url.pathname);
+                } catch {}
+              }}
+              className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs transition cursor-pointer"
+            >
+              Ir al inicio de sesión
+            </button>
           </div>
         ) : exito ? (
-          <div className="py-6 space-y-3">
-            <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
-              <CheckCircle2 className="w-7 h-7" />
-            </div>
-            <h3 className="text-base font-bold text-slate-900">¡Contraseña Cambiada con Éxito!</h3>
-            <p className="text-xs text-slate-600">
-              Tu contraseña ha sido actualizada en Firebase. Redirigiendo al sistema...
+          /* Éxito total */
+          <div className="space-y-4 text-center">
+            <h3 className="font-black text-slate-900 text-lg">¡Contraseña restablecida!</h3>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              La contraseña de tu cuenta ha sido actualizada con éxito. Ya puedes iniciar sesión con tu nueva clave.
             </p>
+
+            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs text-emerald-800 font-semibold flex items-center justify-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-emerald-600" />
+              <span>Acceso seguro restablecido</span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setOobCode(null);
+                onSuccess();
+              }}
+              className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 cursor-pointer transition"
+            >
+              <span>Iniciar Sesión Ahora</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
           </div>
         ) : (
-          <form onSubmit={handleGuardar} className="space-y-3.5 text-left">
+          /* Formulario para ingresar la nueva contraseña (estilo ChatGPT) */
+          <form onSubmit={handleGuardar} className="space-y-4 text-left">
+            <div className="text-center">
+              <h3 className="font-black text-slate-900 text-lg">Restablece tu contraseña</h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Ingresa una nueva contraseña para {emailAsociado ? <strong className="text-slate-700">{emailAsociado}</strong> : 'tu cuenta'}.
+              </p>
+            </div>
+
             {errorGuardado && (
-              <div className="p-2.5 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs font-semibold flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                <span>{errorGuardado}</span>
+              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs font-semibold flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                <span className="leading-snug">{errorGuardado}</span>
               </div>
             )}
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Escribe tu Nueva Contraseña
-              </label>
+              <label className="block font-bold text-slate-700 text-xs mb-1">Nueva Contraseña</label>
               <div className="relative">
-                <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
-                  type={mostrarPassword ? 'text' : 'password'}
+                  type={mostrarPassword ? "text" : "password"}
                   required
+                  autoFocus
                   value={nuevaPassword}
                   onChange={e => setNuevaPassword(e.target.value)}
-                  placeholder="Mínimo 6 caracteres"
-                  className="w-full pl-9 pr-10 py-2.5 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 outline-hidden focus:ring-2 focus:ring-blue-500"
+                  placeholder="Al menos 6 caracteres"
+                  className="w-full pl-9 pr-10 py-2.5 border border-slate-300 rounded-xl font-medium text-slate-900 text-xs outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
                 />
                 <button
                   type="button"
                   onClick={() => setMostrarPassword(!mostrarPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
                 >
                   {mostrarPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -220,18 +274,16 @@ export const ResetPasswordHandlerModal: React.FC<ResetPasswordHandlerModalProps>
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Confirma tu Nueva Contraseña
-              </label>
+              <label className="block font-bold text-slate-700 text-xs mb-1">Repite la Nueva Contraseña</label>
               <div className="relative">
-                <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
-                  type={mostrarPassword ? 'text' : 'password'}
+                  type={mostrarPassword ? "text" : "password"}
                   required
                   value={confirmarPassword}
                   onChange={e => setConfirmarPassword(e.target.value)}
-                  placeholder="Repite la contraseña"
-                  className="w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 outline-hidden focus:ring-2 focus:ring-blue-500"
+                  placeholder="Repite tu contraseña"
+                  className="w-full pl-9 pr-10 py-2.5 border border-slate-300 rounded-xl font-medium text-slate-900 text-xs outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
                 />
               </div>
             </div>
@@ -239,7 +291,7 @@ export const ResetPasswordHandlerModal: React.FC<ResetPasswordHandlerModalProps>
             <button
               type="submit"
               disabled={guardando}
-              className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-xs flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-60"
+              className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 cursor-pointer transition disabled:opacity-60"
             >
               {guardando ? (
                 <>
@@ -248,8 +300,8 @@ export const ResetPasswordHandlerModal: React.FC<ResetPasswordHandlerModalProps>
                 </>
               ) : (
                 <>
-                  <span>Guardar y Entrar al Sistema</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>Restablecer contraseña</span>
                 </>
               )}
             </button>
