@@ -11,7 +11,7 @@ interface InventarioProps {
 
 export const InventarioView: React.FC<InventarioProps> = ({ 
   productos, 
-  tasaCambio = 36.65,
+  tasaCambio = 36.62,
   onExportarExcel 
 }) => {
   const [busqueda, setBusqueda] = useState('');

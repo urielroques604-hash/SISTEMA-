@@ -35,7 +35,7 @@ export const CajaView: React.FC<CajaProps> = ({
   movimientos,
   saldoActual,
   usuario,
-  tasaCambio = 36.65,
+  tasaCambio = 36.62,
   onAbrirModalTasa,
   onRegistrarMovimiento,
   onCerrarCaja

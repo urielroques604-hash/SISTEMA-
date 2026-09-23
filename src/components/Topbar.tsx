@@ -1,5 +1,5 @@
 import React from 'react';
-import { Menu, Trash2, FileSpreadsheet, Upload, KeyRound, ImageOff, Image as ImageIcon, Coins, UserCheck } from 'lucide-react';
+import { Menu, Trash2, FileSpreadsheet, Upload, KeyRound, ImageOff, Image as ImageIcon, Coins, UserCheck, Building2 } from 'lucide-react';
 import { formatoUSD, formatoNIO, aCordobas } from '../utils/currency';
 
 interface TopbarProps {
@@ -63,14 +63,14 @@ export const Topbar: React.FC<TopbarProps> = ({
       </div>
 
       <div className="flex items-center gap-1.5 sm:gap-2">
-        {/* Botón Configurar Tasa de Cambio (Dólares / Córdobas) */}
+        {/* Botón Configurar Tasa de Cambio Bancaria (Dólares / Córdobas) */}
         <button
           onClick={onAbrirModalTasa}
-          title="Tasa de Cambio Oficial (Clic para modificar)"
-          className="flex items-center gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-black transition cursor-pointer shadow-2xs group"
+          title="Tasa de Cambio del Banco (Clic para ver tasas bancarias de BCN, BAC, Banpro, Lafise)"
+          className="flex items-center gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 text-xs font-black transition cursor-pointer shadow-2xs group"
         >
-          <Coins className="w-3.5 h-3.5 text-emerald-600 group-hover:rotate-12 transition-transform" />
-          <span className="hidden sm:inline">Tasa:</span>
+          <Building2 className="w-3.5 h-3.5 text-emerald-700 group-hover:scale-110 transition-transform" />
+          <span className="hidden sm:inline">Banco:</span>
           <span>1$ = C${tasaCambio.toFixed(2)}</span>
         </button>
 

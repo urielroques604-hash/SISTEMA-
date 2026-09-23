@@ -48,14 +48,14 @@ export const FacturaModal: React.FC<FacturaModalProps> = ({
   numeroVenta,
   ventas,
   clientes = [],
-  tasaCambio = 36.65,
+  tasaCambio = 36.62,
   onClose
 }) => {
   const lineas = ventas.filter(v => v.numeroVenta === numeroVenta);
   if (!lineas.length) return null;
 
   const cabecera = lineas[0];
-  const tasaVenta = cabecera.tasaCambio || tasaCambio || 36.65;
+  const tasaVenta = cabecera.tasaCambio || tasaCambio || 36.62;
   const total = lineas.reduce((acc, it) => acc + it.total, 0);
   const totalNIO = total * tasaVenta;
   const totalArticulos = lineas.reduce((acc, it) => acc + it.cantidad, 0);

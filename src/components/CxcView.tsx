@@ -25,7 +25,7 @@ interface CxcProps {
 export const CxcView: React.FC<CxcProps> = ({ 
   cuentasPorCobrar, 
   clientes = [],
-  tasaCambio = 36.65 
+  tasaCambio = 36.62 
 }) => {
   const [busqueda, setBusqueda] = useState('');
   const [mensajeCopiado, setMensajeCopiado] = useState<string | null>(null);

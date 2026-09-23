@@ -57,7 +57,7 @@ export const PosView: React.FC<PosProps> = ({
   setCarrito,
   modoSinImagenes = false,
   onToggleModoSinImagenes,
-  tasaCambio = 36.65,
+  tasaCambio = 36.62,
   onAbrirModalTasa,
   usuarioActual = 'JENIFER SANCHEZ',
   onCambiarUsuario,
@@ -273,13 +273,17 @@ export const PosView: React.FC<PosProps> = ({
     <div className="flex flex-col gap-3">
       {/* Barra de Tasa y Navegación Móvil */}
       <div className="flex flex-wrap items-center justify-between gap-2 bg-gradient-to-r from-slate-900 to-slate-800 p-2.5 sm:p-3 rounded-2xl text-white shadow-sm">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+        <div 
+          onClick={onAbrirModalTasa}
+          className="flex items-center gap-2 cursor-pointer group"
+          title="Clic para ver o cambiar la tasa del banco (BCN, BAC, Banpro, Lafise)"
+        >
+          <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center group-hover:scale-105 transition-transform">
             <Coins className="w-4 h-4" />
           </div>
           <div>
-            <span className="text-xs font-black block leading-tight">Precios en Dólar ($) y Córdoba (C$)</span>
-            <span className="text-[10px] text-slate-300">Tasa Oficial: 1 $ USD = C$ {tasaCambio.toFixed(2)} NIO</span>
+            <span className="text-xs font-black block leading-tight group-hover:text-emerald-300 transition-colors">Precios en Dólar ($) y Córdoba (C$)</span>
+            <span className="text-[10px] text-slate-300">Tasa del Banco: 1 $ USD = C$ {tasaCambio.toFixed(2)} NIO</span>
           </div>
         </div>
 

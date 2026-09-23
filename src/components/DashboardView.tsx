@@ -27,7 +27,7 @@ export const DashboardView: React.FC<DashboardProps> = ({
   ventas,
   creditos,
   saldoCaja,
-  tasaCambio = 36.65,
+  tasaCambio = 36.62,
   onNavigate
 }) => {
   // Cálculos métricas

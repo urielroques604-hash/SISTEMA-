@@ -31,10 +31,10 @@ export const ComprobanteCreditoModal: React.FC<ComprobanteCreditoModalProps> = (
   credito,
   abono,
   clienteInfo,
-  tasaCambio = 36.65,
+  tasaCambio = 36.62,
   onClose
 }) => {
-  const tc = credito.tasaCambio || abono?.tasaCambio || tasaCambio || 36.65;
+  const tc = credito.tasaCambio || abono?.tasaCambio || tasaCambio || 36.62;
   const [anchoTicket, setAnchoTicket] = useState<'80mm' | '58mm'>('80mm');
   const [maquinitaConectada, setMaquinitaConectada] = useState<string | null>(null);
   const [mensajeMaquinita, setMensajeMaquinita] = useState<{ tipo: 'ok' | 'err'; texto: string } | null>(null);

@@ -32,7 +32,7 @@ interface EstadoDeCuentaModalProps {
 export const EstadoDeCuentaModal: React.FC<EstadoDeCuentaModalProps> = ({
   cuenta,
   clienteInfo,
-  tasaCambio = 36.65,
+  tasaCambio = 36.62,
   onClose
 }) => {
   const [generandoImagen, setGenerandoImagen] = useState(false);

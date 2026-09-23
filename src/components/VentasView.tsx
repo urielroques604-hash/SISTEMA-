@@ -24,7 +24,7 @@ interface VentasProps {
 
 export const VentasView: React.FC<VentasProps> = ({
   ventas,
-  tasaCambio = 36.65,
+  tasaCambio = 36.62,
   onVerFactura,
   onIrAnular,
   onExportarExcel

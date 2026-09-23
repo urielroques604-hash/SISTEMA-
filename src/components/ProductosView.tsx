@@ -41,7 +41,7 @@ interface ProductosProps {
 
 export const ProductosView: React.FC<ProductosProps> = ({
   productos,
-  tasaCambio = 36.65,
+  tasaCambio = 36.62,
   onAbrirModalTasa,
   onGuardarProducto,
   onEliminarProducto,

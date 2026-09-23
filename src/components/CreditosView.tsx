@@ -39,7 +39,7 @@ export const CreditosView: React.FC<CreditosProps> = ({
   creditos,
   abonos,
   clientes = [],
-  tasaCambio = 36.65,
+  tasaCambio = 36.62,
   onAbrirModalTasa,
   onRegistrarAbono
 }) => {
