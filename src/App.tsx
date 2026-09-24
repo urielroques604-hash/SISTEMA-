@@ -568,6 +568,8 @@ export default function App() {
         cambioCordobas: datos.cambioCordobas,
         numCredito: numCredito,
         usuario: usuarioActual,
+        marca: it.marca,
+        mililitros: it.mililitros,
         estado: 'COMPLETADA'
       };
     });

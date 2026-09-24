@@ -80,12 +80,16 @@ export const PosView: React.FC<PosProps> = ({
   const [alerta, setAlerta] = useState<{ tipo: 'error' | 'success'; mensaje: string } | null>(null);
 
   // Filtro de productos
-  const productosFiltrados = productos.filter(p => 
-    p.codigo.toLowerCase().includes(busqueda.toLowerCase()) ||
-    p.producto.toLowerCase().includes(busqueda.toLowerCase()) ||
-    p.categoria.toLowerCase().includes(busqueda.toLowerCase()) ||
-    (p.marca && p.marca.toLowerCase().includes(busqueda.toLowerCase()))
-  );
+  const productosFiltrados = productos.filter(p => {
+    const mlTexto = p.mililitros ? `${p.mililitros}ml ${p.mililitros} ml` : '';
+    return (
+      p.codigo.toLowerCase().includes(busqueda.toLowerCase()) ||
+      p.producto.toLowerCase().includes(busqueda.toLowerCase()) ||
+      p.categoria.toLowerCase().includes(busqueda.toLowerCase()) ||
+      (p.marca && p.marca.toLowerCase().includes(busqueda.toLowerCase())) ||
+      mlTexto.toLowerCase().includes(busqueda.toLowerCase())
+    );
+  });
 
   // Totales
   const subtotalUSD = carrito.reduce((acc, item) => acc + (item.precioUnitario * item.cantidad), 0);
@@ -135,6 +139,7 @@ export const PosView: React.FC<PosProps> = ({
           precioUnitarioCordobas: prod.precioVentaCordobas || (prod.precioVenta * tasaCambio),
           maxStock: prod.existencia,
           marca: prod.marca,
+          mililitros: prod.mililitros,
           imagen: prod.imagen,
           sinImagen: prod.sinImagen
         }
@@ -401,13 +406,18 @@ export const PosView: React.FC<PosProps> = ({
                       <span className="text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-mono truncate">
                         {prod.codigo}
                       </span>
-                      {prod.marca ? (
-                        <span className="bg-pink-100 text-pink-800 text-[9px] font-bold px-1.5 py-0.5 rounded-md truncate max-w-[110px]">
-                          {prod.marca}
-                        </span>
-                      ) : (
-                        <Package className="w-3.5 h-3.5 text-slate-300" />
-                      )}
+                      <div className="flex items-center gap-1">
+                        {prod.mililitros && (
+                          <span className="bg-indigo-100 text-indigo-800 text-[9px] font-black px-1.5 py-0.5 rounded-md">
+                            {prod.mililitros} ml
+                          </span>
+                        )}
+                        {prod.marca && (
+                          <span className="bg-pink-100 text-pink-800 text-[9px] font-bold px-1.5 py-0.5 rounded-md truncate max-w-[90px]">
+                            {prod.marca}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   ) : (
                     <div className="w-full h-24 mb-2 rounded-xl overflow-hidden bg-pink-50/40 border border-slate-100 flex items-center justify-center relative">
@@ -420,6 +430,11 @@ export const PosView: React.FC<PosProps> = ({
                           (e.target as HTMLElement).style.display = 'none';
                         }}
                       />
+                      {prod.mililitros && (
+                        <span className="absolute top-1 left-1 bg-indigo-950/85 backdrop-blur-xs text-white text-[9px] font-black px-1.5 py-0.5 rounded-md shadow-2xs">
+                          {prod.mililitros} ml
+                        </span>
+                      )}
                       {prod.marca && (
                         <span className="absolute bottom-1 left-1 bg-black/75 backdrop-blur-xs text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md">
                           {prod.marca}
@@ -436,9 +451,16 @@ export const PosView: React.FC<PosProps> = ({
                         </span>
                       </div>
                     )}
-                    <h4 className="font-extrabold text-xs text-slate-900 line-clamp-2 leading-snug">
-                      {prod.producto}
-                    </h4>
+                    <div className="flex items-center gap-1 flex-wrap">
+                      <h4 className="font-extrabold text-xs text-slate-900 line-clamp-2 leading-snug">
+                        {prod.producto}
+                      </h4>
+                      {prod.mililitros && (
+                        <span className="text-[9px] font-black text-indigo-700 bg-indigo-50 px-1 py-0.2 rounded border border-indigo-200">
+                          {prod.mililitros} ml
+                        </span>
+                      )}
+                    </div>
                     <p className="text-[10px] text-slate-400 mt-0.5 truncate">{prod.categoria}</p>
                   </div>
 
@@ -525,9 +547,22 @@ export const PosView: React.FC<PosProps> = ({
                   return (
                     <div key={it.codigo} className="p-2.5 rounded-xl border border-slate-100 bg-slate-50/70 flex items-center justify-between gap-2.5">
                       <div className="min-w-0 flex-1">
-                        <h5 className="font-extrabold text-xs text-slate-900 truncate">{it.producto}</h5>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <h5 className="font-extrabold text-xs text-slate-900 truncate">{it.producto}</h5>
+                          {it.mililitros && (
+                            <span className="text-[9px] font-black text-indigo-700 bg-indigo-50 px-1 py-0.2 rounded border border-indigo-200">
+                              {it.mililitros}ml
+                            </span>
+                          )}
+                        </div>
                         <div className="flex items-center gap-2 text-[10px] text-slate-500">
                           <span className="font-mono">{it.codigo}</span>
+                          {it.marca && (
+                            <>
+                              <span>·</span>
+                              <span className="text-pink-600 font-semibold">{it.marca}</span>
+                            </>
+                          )}
                           <span>·</span>
                           <span className="font-bold text-slate-700">{formatoUSD(it.precioUnitario)}</span>
                           <span>/</span>

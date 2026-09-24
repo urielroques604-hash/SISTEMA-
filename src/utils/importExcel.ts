@@ -267,6 +267,8 @@ export function mapearFilasAProductos(
     let precioVentaCordobas: number | undefined = undefined;
     let talla = '';
     let color = '';
+    let marca = '';
+    let mililitros: number | undefined = undefined;
 
     const tcGlobal = obtenerTasaCambio();
 
@@ -294,6 +296,11 @@ export function mapearFilasAProductos(
         talla = strVal;
       } else if (norm.includes('color')) {
         color = strVal;
+      } else if (norm.includes('mililitro') || norm.includes('ml') || norm === 'volumen' || norm === 'contenido') {
+        const mlParsed = aNumero(val, 0);
+        if (mlParsed > 0) mililitros = mlParsed;
+      } else if (norm.includes('marca') || norm.includes('brand') || norm.includes('fabricante')) {
+        marca = strVal;
       }
     }
 
@@ -345,6 +352,8 @@ export function mapearFilasAProductos(
       codigo,
       producto: nombreFinal,
       categoria: categoria || 'General',
+      marca: marca || undefined,
+      mililitros: mililitros || undefined,
       existencia: existencia,
       precioCompra: Number(precioCompra.toFixed(2)),
       precioCompraCordobas: precioCompraCordobas ? Number(precioCompraCordobas.toFixed(2)) : undefined,

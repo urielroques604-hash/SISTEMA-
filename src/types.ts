@@ -8,6 +8,7 @@ export interface Producto {
   precioCompraCordobas?: number; // en C$
   precioVentaCordobas?: number; // en C$
   marca?: string;
+  mililitros?: number;
   imagen?: string;
   sinImagen?: boolean;
 }
@@ -21,6 +22,7 @@ export interface ItemCarrito {
   precioUnitarioCordobas?: number; // en C$
   maxStock: number;
   marca?: string;
+  mililitros?: number;
   imagen?: string;
   sinImagen?: boolean;
 }
@@ -49,6 +51,7 @@ export interface VentaRegistro {
   numCredito?: string;
   usuario: string;
   marca?: string;
+  mililitros?: number;
   descuento?: number;
   estado: 'COMPLETADA' | 'ANULADA';
   fechaAnulacion?: string;

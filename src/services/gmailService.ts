@@ -169,7 +169,9 @@ export function generarHtmlFactura(
 
   const filasProductos = lineas.map((it, idx) => `
     <tr style="border-bottom: 1px solid #f1f5f9; background-color: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
-      <td style="padding: 10px 12px; font-weight: bold; color: #1e293b; font-size: 13px;">${it.producto}</td>
+      <td style="padding: 10px 12px; font-weight: bold; color: #1e293b; font-size: 13px;">
+        ${it.producto}${it.mililitros ? ` <span style="font-size: 11px; color: #4338ca; background: #e0e7ff; padding: 2px 6px; border-radius: 4px; font-weight: 800;">${it.mililitros} ml</span>` : ''}
+      </td>
       <td style="padding: 10px 12px; text-align: center; color: #475569; font-size: 13px;">${it.cantidad}</td>
       <td style="padding: 10px 12px; text-align: right; color: #475569; font-size: 13px;">$${it.precioUnitario.toFixed(2)}</td>
       <td style="padding: 10px 12px; text-align: right; font-weight: bold; color: #0f172a; font-size: 13px;">$${it.total.toFixed(2)}</td>

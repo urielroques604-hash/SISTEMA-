@@ -196,7 +196,8 @@ export const FacturaModal: React.FC<FacturaModalProps> = ({
     const lineasTexto = lineas.map(it => {
       const itNIO = (it.total * tasaVenta).toFixed(2);
       const itUnitNIO = (it.precioUnitario * tasaVenta).toFixed(2);
-      return `• ${it.cantidad}x ${it.producto} ($${it.precioUnitario.toFixed(2)} / C$ ${itUnitNIO}) = *$${it.total.toFixed(2)}* (C$ ${itNIO})`;
+      const nombreConMl = it.mililitros ? `${it.producto} (${it.mililitros}ml)` : it.producto;
+      return `• ${it.cantidad}x ${nombreConMl} ($${it.precioUnitario.toFixed(2)} / C$ ${itUnitNIO}) = *$${it.total.toFixed(2)}* (C$ ${itNIO})`;
     }).join('\n');
 
     let textoEfectivo = '';
@@ -546,7 +547,14 @@ ${lineasTexto}
                           <td className="py-2.5 px-3 text-slate-400 font-mono text-[11px]">{idx + 1}</td>
                           <td className="py-2.5 px-3 font-mono font-bold text-slate-700 text-[11px]">{it.codigo}</td>
                           <td className="py-2.5 px-3">
-                            <span className="font-bold text-slate-900 block leading-tight">{it.producto}</span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-bold text-slate-900 block leading-tight">{it.producto}</span>
+                              {it.mililitros && (
+                                <span className="text-[9px] font-black text-indigo-700 bg-indigo-50 px-1.5 py-0.2 rounded border border-indigo-200">
+                                  {it.mililitros} ml
+                                </span>
+                              )}
+                            </div>
                             {it.marca && <span className="text-[10px] text-slate-500 font-medium">Marca: {it.marca}</span>}
                           </td>
                           <td className="py-2.5 px-2 text-center font-extrabold text-slate-900">{it.cantidad}</td>
@@ -801,9 +809,16 @@ ${lineasTexto}
                           {it.cantidad}x
                         </span>
                         <div className="min-w-0">
-                          <h4 className="font-bold text-xs text-slate-900 leading-snug">
-                            {it.producto}
-                          </h4>
+                          <div className="flex items-center gap-1 flex-wrap">
+                            <h4 className="font-bold text-xs text-slate-900 leading-snug">
+                              {it.producto}
+                            </h4>
+                            {it.mililitros && (
+                              <span className="text-[9px] font-black text-indigo-700 bg-indigo-50 px-1 py-0.2 rounded border border-indigo-200">
+                                {it.mililitros}ml
+                              </span>
+                            )}
+                          </div>
                           <p className="text-[10px] text-slate-400 mt-0.5">
                             ${it.precioUnitario.toFixed(2)} c/u • <span className="font-mono">{it.codigo}</span>
                           </p>
@@ -922,7 +937,9 @@ ${lineasTexto}
                   {lineas.map((it, idx) => (
                     <div key={idx} className="py-1 flex justify-between items-start gap-1">
                       <div className="flex-1 min-w-0 pr-1">
-                        <p className="font-bold leading-tight truncate">{it.producto}</p>
+                        <p className="font-bold leading-tight truncate">
+                          {it.producto} {it.mililitros ? `(${it.mililitros}ml)` : ''}
+                        </p>
                         <p className="text-[10px] text-slate-500 font-mono">
                           {it.cantidad}x @ ${it.precioUnitario.toFixed(2)} (C$ {(it.precioUnitario * tasaVenta).toFixed(2)})
                         </p>

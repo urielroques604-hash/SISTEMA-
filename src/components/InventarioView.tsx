@@ -16,11 +16,16 @@ export const InventarioView: React.FC<InventarioProps> = ({
 }) => {
   const [busqueda, setBusqueda] = useState('');
 
-  const filtrados = productos.filter(p =>
-    p.codigo.toLowerCase().includes(busqueda.toLowerCase()) ||
-    p.producto.toLowerCase().includes(busqueda.toLowerCase()) ||
-    p.categoria.toLowerCase().includes(busqueda.toLowerCase())
-  );
+  const filtrados = productos.filter(p => {
+    const mlTexto = p.mililitros ? `${p.mililitros}ml ${p.mililitros} ml` : '';
+    return (
+      p.codigo.toLowerCase().includes(busqueda.toLowerCase()) ||
+      p.producto.toLowerCase().includes(busqueda.toLowerCase()) ||
+      p.categoria.toLowerCase().includes(busqueda.toLowerCase()) ||
+      (p.marca && p.marca.toLowerCase().includes(busqueda.toLowerCase())) ||
+      mlTexto.toLowerCase().includes(busqueda.toLowerCase())
+    );
+  });
 
   const valorCostoTotal = productos.reduce((acc, p) => acc + (p.existencia * p.precioCompra), 0);
   const valorVentaTotal = productos.reduce((acc, p) => acc + (p.existencia * p.precioVenta), 0);
@@ -107,7 +112,21 @@ export const InventarioView: React.FC<InventarioProps> = ({
                 return (
                   <tr key={p.codigo} className="hover:bg-slate-50">
                     <td className="px-4 py-3 font-mono font-bold text-slate-800">{p.codigo}</td>
-                    <td className="px-4 py-3 font-medium text-slate-900">{p.producto}</td>
+                    <td className="px-4 py-3 font-medium text-slate-900">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span>{p.producto}</span>
+                        {p.mililitros && (
+                          <span className="text-[10px] font-black text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200 shadow-2xs">
+                            {p.mililitros} ml
+                          </span>
+                        )}
+                        {p.marca && (
+                          <span className="text-[10px] text-pink-700 font-semibold bg-pink-50 px-1.5 py-0.2 rounded border border-pink-100">
+                            {p.marca}
+                          </span>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-4 py-3 text-slate-500">{p.categoria}</td>
                     <td className="px-4 py-3 text-center font-bold">
                       {esAgotado ? (

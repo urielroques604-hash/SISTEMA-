@@ -21,7 +21,8 @@ import {
   Layers,
   TrendingUp,
   Building2,
-  PlusCircle
+  PlusCircle,
+  FlaskConical
 } from 'lucide-react';
 import { Producto } from '../types';
 import { formatoUSD, formatoNIO, aCordobas, aDolares } from '../utils/currency';
@@ -95,6 +96,7 @@ export const ProductosView: React.FC<ProductosProps> = ({
   const [formImagen, setFormImagen] = useState('');
   const [formSinImagen, setFormSinImagen] = useState(false);
   const [formExistencia, setFormExistencia] = useState(0);
+  const [formMililitros, setFormMililitros] = useState<string>('');
   const [monedaPrecios, setMonedaPrecios] = useState<'NIO' | 'USD'>('NIO');
   const [formPrecioCompraUSD, setFormPrecioCompraUSD] = useState<string>('15.00');
   const [formPrecioCompraNIO, setFormPrecioCompraNIO] = useState<string>('');
@@ -171,9 +173,11 @@ export const ProductosView: React.FC<ProductosProps> = ({
   const categorias = Array.from(new Set(productos.map(p => p.categoria).filter(Boolean)));
 
   const productosFiltrados = productos.filter(p => {
+    const mlTexto = p.mililitros ? `${p.mililitros}ml ${p.mililitros} ml` : '';
     const matchText = p.codigo.toLowerCase().includes(busqueda.toLowerCase()) ||
                       p.producto.toLowerCase().includes(busqueda.toLowerCase()) ||
-                      (p.marca && p.marca.toLowerCase().includes(busqueda.toLowerCase()));
+                      (p.marca && p.marca.toLowerCase().includes(busqueda.toLowerCase())) ||
+                      mlTexto.toLowerCase().includes(busqueda.toLowerCase());
     const matchCat = categoriaFiltro ? p.categoria === categoriaFiltro : true;
     return matchText && matchCat;
   });
@@ -184,6 +188,7 @@ export const ProductosView: React.FC<ProductosProps> = ({
     setFormNombre('');
     setFormCategoria('Perfumes');
     setFormMarca('');
+    setFormMililitros('');
     setFormImagen('');
     setFormSinImagen(false);
     setFormExistencia(10);
@@ -203,6 +208,7 @@ export const ProductosView: React.FC<ProductosProps> = ({
     setFormNombre(prod.producto);
     setFormCategoria(prod.categoria);
     setFormMarca(prod.marca || '');
+    setFormMililitros(prod.mililitros ? String(prod.mililitros) : '');
     setFormImagen(prod.imagen || '');
     setFormSinImagen(prod.sinImagen === true || !prod.imagen);
     setFormExistencia(prod.existencia);
@@ -303,11 +309,15 @@ export const ProductosView: React.FC<ProductosProps> = ({
       return;
     }
 
+    const mlNum = formMililitros.trim() ? parseFloat(formMililitros.trim().replace(',', '.')) : undefined;
+    const mililitrosFinal = (mlNum && !isNaN(mlNum) && mlNum > 0) ? mlNum : undefined;
+
     const productoAGuardar: Producto = {
       codigo: codLimpio,
       producto: nomLimpio,
       categoria: formCategoria.trim() || 'General',
       marca: formMarca.trim() || undefined,
+      mililitros: mililitrosFinal,
       imagen: imagenFinal,
       sinImagen: formSinImagen || !imagenFinal,
       existencia: Math.max(0, Number(formExistencia) || 0),
@@ -326,6 +336,7 @@ export const ProductosView: React.FC<ProductosProps> = ({
       setFormCodigo(sigCodigo);
       setFormNombre('');
       setFormMarca('');
+      setFormMililitros('');
       setFormImagen('');
       setFormSinImagen(false);
       setFormExistencia(10);
@@ -478,7 +489,14 @@ export const ProductosView: React.FC<ProductosProps> = ({
                     </td>
                     <td className="px-3 py-3 font-mono font-bold text-slate-800">{prod.codigo}</td>
                     <td className="px-4 py-3">
-                      <div className="font-bold text-slate-900">{prod.producto}</div>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-bold text-slate-900">{prod.producto}</span>
+                        {prod.mililitros && (
+                          <span className="text-[10px] font-black text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded-md border border-indigo-200 shadow-2xs">
+                            {prod.mililitros} ml
+                          </span>
+                        )}
+                      </div>
                       {prod.marca && (
                         <span className="inline-block text-[10px] font-semibold text-pink-700 bg-pink-50 px-1.5 py-0.2 rounded border border-pink-200 mt-0.5">
                           {prod.marca}
@@ -728,6 +746,61 @@ export const ProductosView: React.FC<ProductosProps> = ({
                                 {m}
                               </button>
                             ))}
+                          </div>
+                        </div>
+
+                        {/* Mililitros (ml) - Opcional */}
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="font-bold text-xs text-slate-700 flex items-center gap-1.5">
+                              <FlaskConical className="w-3.5 h-3.5 text-indigo-600" />
+                              <span>Contenido / Mililitros (ml)</span>
+                            </label>
+                            <span className="text-[10px] font-semibold text-slate-400 bg-slate-200/60 px-1.5 py-0.2 rounded">
+                              Opcional
+                            </span>
+                          </div>
+                          <div className="relative">
+                            <input
+                              type="number"
+                              min="0"
+                              step="any"
+                              value={formMililitros}
+                              onChange={e => setFormMililitros(e.target.value)}
+                              placeholder="Ej: 100, 50, 75, 200..."
+                              className="w-full pl-3 pr-10 py-2 border border-slate-300 rounded-xl bg-white text-slate-900 font-bold focus:ring-2 focus:ring-indigo-500 outline-none text-xs"
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-black text-indigo-600">
+                              ml
+                            </span>
+                          </div>
+
+                          {/* Chips rápidos de mililitros estándar de perfumería */}
+                          <div className="flex flex-wrap items-center gap-1 mt-1.5">
+                            <span className="text-[10px] text-slate-400 mr-0.5 font-medium">Rápidos:</span>
+                            {[30, 50, 75, 100, 125, 150, 200].map(ml => (
+                              <button
+                                key={ml}
+                                type="button"
+                                onClick={() => setFormMililitros(String(ml))}
+                                className={`text-[10px] px-2 py-0.5 rounded-md border font-semibold transition cursor-pointer ${
+                                  formMililitros === String(ml)
+                                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
+                                    : 'bg-white text-slate-600 border-slate-200 hover:bg-indigo-50 hover:text-indigo-700'
+                                }`}
+                              >
+                                {ml} ml
+                              </button>
+                            ))}
+                            {formMililitros && (
+                              <button
+                                type="button"
+                                onClick={() => setFormMililitros('')}
+                                className="text-[10px] text-rose-500 hover:underline px-1 ml-auto cursor-pointer"
+                              >
+                                Limpiar
+                              </button>
+                            )}
                           </div>
                         </div>
 
